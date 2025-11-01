@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import Link from 'next/link'
 import { onAuthStateChange, signOut, getCurrentUser } from '@/lib/firebase/auth'
 import { User } from 'firebase/auth'
-import { GitBranch, LogOut, Loader2 } from 'lucide-react'
+import { GitBranch, LogOut, Loader2, ArrowRight, Code2, Trophy } from 'lucide-react'
 import Button from '@/components/ui/button'
 
 export default function DashboardPage() {
@@ -97,21 +98,46 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="rounded-xl border-2 border-dashed border-gray-300 bg-white p-12 text-center">
-          <div className="mx-auto max-w-md">
-            <div className="mb-4 inline-flex items-center justify-center rounded-full bg-primary-100 p-4">
-              <GitBranch className="h-8 w-8 text-primary-600" />
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {/* Playground Card */}
+          <Link
+            href="/playground"
+            className="group rounded-xl border-2 border-gray-200 bg-white p-6 transition-all hover:border-primary-600 hover:shadow-lg"
+          >
+            <div className="mb-4 inline-flex items-center justify-center rounded-lg bg-primary-100 p-3 text-primary-600 transition-colors group-hover:bg-primary-600 group-hover:text-white">
+              <GitBranch className="h-6 w-6" />
             </div>
-            <h2 className="mb-2 text-2xl font-bold text-gray-900">Dashboard Coming Soon</h2>
+            <h3 className="mb-2 text-xl font-semibold text-gray-900">Git Playground</h3>
             <p className="text-gray-600">
-              We&apos;re building an amazing learning experience for you. The interactive challenges,
-              progress tracking, and Git simulator will be here soon!
+              Practice Git commands in a safe, simulated terminal environment.
             </p>
-            <div className="mt-6">
-              <p className="text-sm text-gray-500">
-                Your account is set up and ready. Check back soon for updates!
-              </p>
+            <div className="mt-4 flex items-center gap-2 text-sm font-medium text-primary-600 group-hover:text-primary-700">
+              Try it now
+              <ArrowRight className="h-4 w-4" />
             </div>
+          </Link>
+
+          {/* Coming Soon Cards */}
+          <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-6">
+            <div className="mb-4 inline-flex items-center justify-center rounded-lg bg-gray-200 p-3">
+              <Code2 className="h-6 w-6 text-gray-400" />
+            </div>
+            <h3 className="mb-2 text-xl font-semibold text-gray-900">Challenges</h3>
+            <p className="text-gray-600">
+              Interactive Git challenges with hints and validation.
+            </p>
+            <div className="mt-4 text-sm text-gray-500">Coming soon...</div>
+          </div>
+
+          <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-6">
+            <div className="mb-4 inline-flex items-center justify-center rounded-lg bg-gray-200 p-3">
+              <Trophy className="h-6 w-6 text-gray-400" />
+            </div>
+            <h3 className="mb-2 text-xl font-semibold text-gray-900">Achievements</h3>
+            <p className="text-gray-600">
+              Earn badges and track your learning progress.
+            </p>
+            <div className="mt-4 text-sm text-gray-500">Coming soon...</div>
           </div>
         </div>
       </main>
