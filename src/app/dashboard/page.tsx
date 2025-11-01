@@ -117,18 +117,25 @@ export default function DashboardPage() {
             </div>
           </Link>
 
-          {/* Coming Soon Cards */}
-          <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-6">
-            <div className="mb-4 inline-flex items-center justify-center rounded-lg bg-gray-200 p-3">
-              <Code2 className="h-6 w-6 text-gray-400" />
+          {/* Challenges Card - NOW CLICKABLE */}
+          <Link
+            href="/challenges"
+            className="group rounded-xl border-2 border-gray-200 bg-white p-6 transition-all hover:border-primary-600 hover:shadow-lg"
+          >
+            <div className="mb-4 inline-flex items-center justify-center rounded-lg bg-primary-100 p-3 text-primary-600 transition-colors group-hover:bg-primary-600 group-hover:text-white">
+              <Code2 className="h-6 w-6" />
             </div>
             <h3 className="mb-2 text-xl font-semibold text-gray-900">Challenges</h3>
             <p className="text-gray-600">
               Interactive Git challenges with hints and validation.
             </p>
-            <div className="mt-4 text-sm text-gray-500">Coming soon...</div>
-          </div>
+            <div className="mt-4 flex items-center gap-2 text-sm font-medium text-primary-600 group-hover:text-primary-700">
+              Start learning
+              <ArrowRight className="h-4 w-4" />
+            </div>
+          </Link>
 
+          {/* Achievements Card - Still Coming Soon */}
           <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gray-50 p-6">
             <div className="mb-4 inline-flex items-center justify-center rounded-lg bg-gray-200 p-3">
               <Trophy className="h-6 w-6 text-gray-400" />

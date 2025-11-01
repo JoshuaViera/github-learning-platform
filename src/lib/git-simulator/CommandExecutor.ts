@@ -16,12 +16,10 @@ export class CommandExecutor {
   async execute(input: string): Promise<CommandResult> {
     const parsed = CommandParser.parse(input)
 
-    // Handle non-Git commands
     if (parsed.command !== 'git') {
       return this.executeSystemCommand(parsed.command, parsed.args)
     }
 
-    // Handle Git commands
     if (!parsed.subcommand) {
       return {
         output: `usage: git <command> [<args>]
@@ -119,8 +117,9 @@ Type 'git' for more Git command information.`,
             type: 'error',
           }
         }
-        // Simulate file creation
-        this.gitEngine.addFile(args[0], '')
+        args.forEach((filename) => {
+          this.gitEngine.addFile(filename, '')
+        })
         return {
           output: '',
           type: 'success',
@@ -182,7 +181,7 @@ Maybe you wanted to say 'git add .'?`,
           output = this.gitEngine.commit(message)
           return {
             output,
-            type: output.includes('fatal') ? 'error' : 'success',
+            type: output.includes('fatal') || output.includes('nothing to commit') ? 'error' : 'success',
           }
 
         case 'log':
@@ -196,7 +195,7 @@ Maybe you wanted to say 'git add .'?`,
           output = this.gitEngine.branch(args[0])
           return {
             output: output || `Branch '${args[0]}' created`,
-            type: output.includes('fatal') ? 'error' : 'success',
+            type: output.includes('fatal') ? 'error' : args[0] ? 'success' : 'output',
           }
 
         case 'checkout':
