@@ -19,9 +19,10 @@ export default function LoginPage() {
     try {
       await signInWithGoogle()
       router.push('/dashboard')
-    } catch (err: any) {
+       } catch (err: unknown) {
       console.error('Login error:', err)
-      setError(err.message || 'Failed to sign in. Please try again.')
+      const error = err as Error
+      setError(error.message || 'Failed to sign in. Please try again.')
       setIsLoading(false)
     }
   }

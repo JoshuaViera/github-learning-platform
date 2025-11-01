@@ -33,7 +33,7 @@ export function Terminal({
   const [currentInput, setCurrentInput] = useState('')
   const [commandHistory, setCommandHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
-  const [currentDirectory, setCurrentDirectory] = useState(initialDirectory)
+const [currentDirectory] = useState(initialDirectory)
   const [isProcessing, setIsProcessing] = useState(false)
   const [copied, setCopied] = useState(false)
 

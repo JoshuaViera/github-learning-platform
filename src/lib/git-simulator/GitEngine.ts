@@ -1,4 +1,4 @@
-import { FileNode, GitState, Commit } from '@/types'
+import { GitState, Commit } from '@/types'
 
 export class GitEngine {
   private state: GitState

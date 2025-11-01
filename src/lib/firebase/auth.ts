@@ -38,12 +38,13 @@ export async function signInWithGoogle(): Promise<User> {
     await createOrUpdateUserProfile(user)
 
     return user
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Handle specific error cases
-    if (error.code === 'auth/popup-closed-by-user') {
+    const err = error as { code?: string; message?: string }
+    if (err.code === 'auth/popup-closed-by-user') {
       throw new Error('Sign-in cancelled. Please try again.')
     }
-    if (error.code === 'auth/popup-blocked') {
+    if (err.code === 'auth/popup-blocked') {
       throw new Error('Pop-up blocked. Please allow pop-ups for this site.')
     }
     throw error

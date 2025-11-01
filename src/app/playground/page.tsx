@@ -26,7 +26,6 @@ export default function PlaygroundPage() {
   const handleCommand = async (command: string) => {
     const result = await executor.execute(command)
     
-    // Special handling for clear command
     if (result.output === 'CLEAR_TERMINAL') {
       return { output: '', type: 'output' as const }
     }
@@ -49,7 +48,6 @@ export default function PlaygroundPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="border-b bg-white">
         <div className="container mx-auto flex h-16 items-center justify-between px-4">
           <div className="flex items-center gap-4">
@@ -73,22 +71,20 @@ export default function PlaygroundPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Practice Git Commands</h1>
           <p className="mt-2 text-gray-600">
-            Try out Git commands in a safe, simulated environment. Type <code className="rounded bg-gray-100 px-2 py-1 font-mono text-sm">help</code> to see available commands.
+            Try out Git commands in a safe, simulated environment. Type help to see available
+            commands.
           </p>
         </div>
 
-        {/* Terminal */}
         <div className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
             <Terminal onCommand={handleCommand} />
           </div>
 
-          {/* Help Sidebar */}
           <div className="rounded-lg border border-gray-200 bg-white p-6">
             <h2 className="mb-4 text-lg font-semibold text-gray-900">Quick Reference</h2>
             
@@ -106,7 +102,7 @@ export default function PlaygroundPage() {
                 <code className="block rounded bg-gray-50 p-2 font-mono text-xs">
                   touch file.txt<br />
                   git add file.txt<br />
-                  git commit -m "message"
+                  git commit -m &quot;message&quot;
                 </code>
                 <p className="mt-1 text-gray-600">Create, stage, and commit a file</p>
               </div>
@@ -132,7 +128,8 @@ export default function PlaygroundPage() {
 
             <div className="mt-6 rounded-lg bg-blue-50 p-4">
               <p className="text-xs text-blue-900">
-                <strong>Pro tip:</strong> Use ↑ and ↓ arrow keys to navigate through your command history!
+                <strong>Pro tip:</strong> Use ↑ and ↓ arrow keys to navigate through your command
+                history!
               </p>
             </div>
           </div>
