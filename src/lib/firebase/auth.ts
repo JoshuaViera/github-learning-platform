@@ -16,17 +16,27 @@ const ALLOWED_DOMAIN = process.env.NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN || 'pursuit.
  * Only allows emails from the specified domain (@pursuit.org)
  */
 export async function signInWithGoogle(): Promise<User> {
+  console.log('🔵 Starting Google sign in...')
+  console.log('🔵 Environment:', {
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    appUrl: process.env.NEXT_PUBLIC_APP_URL,
+    allowedDomain: ALLOWED_DOMAIN,
+  })
+
   const provider = new GoogleAuthProvider()
   provider.setCustomParameters({
     prompt: 'select_account', // Always show account selection
   })
 
   try {
+    console.log('🔵 Opening popup...')
     const result = await signInWithPopup(auth, provider)
+    console.log('🟢 Popup succeeded!', result.user.email)
     const user = result.user
 
     // Verify email domain
     if (!user.email?.endsWith(`@${ALLOWED_DOMAIN}`)) {
+      console.log('🔴 Email domain rejected:', user.email)
       // Sign out the user immediately
       await firebaseSignOut(auth)
       throw new Error(
@@ -34,11 +44,16 @@ export async function signInWithGoogle(): Promise<User> {
       )
     }
 
+    console.log('🟢 Email domain accepted:', user.email)
+
     // Create or update user profile in Firestore
     await createOrUpdateUserProfile(user)
+    
+    console.log('🟢 Sign in complete!')
 
     return user
   } catch (error: unknown) {
+    console.log('🔴 Sign in error:', error)
     // Handle specific error cases
     const err = error as { code?: string; message?: string }
     if (err.code === 'auth/popup-closed-by-user') {
