@@ -1,5 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app'
-import { getAuth, setPersistence, browserLocalPersistence } from 'firebase/auth'
+import { getAuth, setPersistence, browserLocalPersistence, indexedDBLocalPersistence } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 
@@ -32,7 +32,6 @@ for (const key of requiredConfigKeys) {
 }
 
 // Initialize Firebase (only once)
-// This pattern ensures we don't reinitialize Firebase during hot reloading
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp()
 
 // Initialize Firebase services
@@ -40,10 +39,20 @@ export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const storage = getStorage(app)
 
-// Set auth persistence immediately (non-blocking)
-setPersistence(auth, browserLocalPersistence).catch((error) => {
-  console.error('Failed to set auth persistence:', error)
-})
+// Set persistence using indexedDB (more reliable than localStorage)
+if (typeof window !== 'undefined') {
+  setPersistence(auth, indexedDBLocalPersistence)
+    .then(() => {
+      console.log('✅ Auth persistence set to indexedDB')
+    })
+    .catch((error) => {
+      console.error('❌ Failed to set persistence, trying localStorage:', error)
+      // Fallback to localStorage if indexedDB fails
+      setPersistence(auth, browserLocalPersistence).catch((err) => {
+        console.error('❌ All persistence methods failed:', err)
+      })
+    })
+}
 
 // Export the app instance
 export default app
