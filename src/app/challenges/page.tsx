@@ -3,97 +3,115 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, GitBranch, Loader2 } from 'lucide-react'
+import { ArrowLeft, GitBranch, Loader2, ChevronDown, ChevronRight, Lock } from 'lucide-react'
 import { ChallengeCard } from '@/components/learning/ChallengeCard'
 import { onAuthStateChange } from '@/lib/firebase/auth'
 import { getChallenges, getUserProgress } from '@/lib/firebase/challenges'
 import { Challenge } from '@/types'
+import { modules, Module } from '@/data/modules'
 
 export default function ChallengesPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
-  const [authChecked, setAuthChecked] = useState(false)
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [completedChallenges, setCompletedChallenges] = useState<Map<string, boolean>>(new Map())
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set(['git-basics']))
   const [dataSource, setDataSource] = useState<'firestore' | 'mock'>('mock')
 
   useEffect(() => {
-    let mounted = true
-
-    const unsubscribe = onAuthStateChange((user) => {
-      if (!mounted) return
-
-      setAuthChecked(true)
-
+    const unsubscribe = onAuthStateChange(async (user) => {
       if (!user) {
         router.push('/login')
         return
       }
 
-      // Only load data once
-      if (!authChecked) {
-        loadChallenges()
-        loadUserProgress(user.uid)
+      try {
+        const firestoreChallenges = await getChallenges()
+        
+        if (firestoreChallenges.length > 0) {
+          console.log('✅ Loaded challenges from Firestore:', firestoreChallenges.length)
+          setChallenges(firestoreChallenges)
+          setDataSource('firestore')
+        } else {
+          console.log('📝 No challenges in Firestore')
+          setChallenges([])
+          setDataSource('mock')
+        }
+
+        const progress = await getUserProgress(user.uid)
+        const completedMap = new Map<string, boolean>()
+        progress.forEach(p => {
+          if (p.status === 'completed') {
+            completedMap.set(p.challengeId, true)
+          }
+        })
+        setCompletedChallenges(completedMap)
+      } catch (error) {
+        console.error('⚠️ Error loading data:', error)
+      } finally {
+        setLoading(false)
       }
     })
 
-    return () => {
-      mounted = false
-      unsubscribe()
-    }
-  }, [router, authChecked])
+    return () => unsubscribe()
+  }, [router])
 
-  const loadChallenges = async () => {
-    try {
-      const firestoreChallenges = await getChallenges()
-      
-      if (firestoreChallenges.length > 0) {
-        console.log('✅ Loaded challenges from Firestore:', firestoreChallenges.length)
-        setChallenges(firestoreChallenges)
-        setDataSource('firestore')
-        setLoading(false)
-        return
+  const toggleModule = (moduleId: string) => {
+    setExpandedModules(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(moduleId)) {
+        newSet.delete(moduleId)
+      } else {
+        newSet.add(moduleId)
       }
-      
-      console.log('📝 Firestore empty, using mock data')
-      const mockChallenges = getMockChallenges()
-      setChallenges(mockChallenges)
-      setDataSource('mock')
-      setLoading(false)
-    } catch (error) {
-      console.error('⚠️ Firestore fetch failed, using mock data:', error)
-      const mockChallenges = getMockChallenges()
-      setChallenges(mockChallenges)
-      setDataSource('mock')
-      setLoading(false)
+      return newSet
+    })
+  }
+
+  const getChallengesByModule = (moduleId: string) => {
+    return challenges.filter(c => c.moduleId === moduleId)
+  }
+
+  const getModuleProgress = (moduleId: string) => {
+    const moduleChallenges = getChallengesByModule(moduleId)
+    const completed = moduleChallenges.filter(c => completedChallenges.get(c.id)).length
+    return {
+      completed,
+      total: moduleChallenges.length,
+      percentage: moduleChallenges.length > 0 ? (completed / moduleChallenges.length) * 100 : 0
     }
   }
 
-  const loadUserProgress = async (userId: string) => {
-    try {
-      const progress = await getUserProgress(userId)
-      
-      const completedMap = new Map<string, boolean>()
-      progress.forEach(p => {
-        if (p.status === 'completed') {
-          completedMap.set(p.challengeId, true)
-        }
-      })
-      
-      console.log('✅ Loaded user progress:', progress.length, 'records')
-      setCompletedChallenges(completedMap)
-    } catch (error) {
-      console.error('⚠️ Failed to load progress:', error)
+  const isModuleLocked = (module: Module) => {
+    if (module.prerequisites.length === 0) return false
+    
+    // Check if all prerequisite modules are 100% complete
+    return module.prerequisites.some(prereqId => {
+      const prereqProgress = getModuleProgress(prereqId)
+      return prereqProgress.percentage < 100
+    })
+  }
+
+  const getTotalProgress = () => {
+    const completed = completedChallenges.size
+    const total = challenges.length
+    return {
+      completed,
+      total,
+      points: completed * 20, // Average 20 points per challenge (rough estimate)
+      percentage: total > 0 ? (completed / total) * 100 : 0
     }
   }
 
-  if (!authChecked || loading) {
+  if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
       </div>
     )
   }
+
+  const totalProgress = getTotalProgress()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -116,12 +134,13 @@ export default function ChallengesPage() {
       </header>
 
       <main className="container mx-auto px-4 py-8">
+        {/* Overall Progress */}
         <div className="mb-8">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">Git Challenges</h1>
               <p className="mt-2 text-gray-600">
-                Complete these challenges to master Git commands and workflows.
+                Complete challenges to master Git commands and workflows.
               </p>
             </div>
             {dataSource === 'mock' && (
@@ -129,155 +148,157 @@ export default function ChallengesPage() {
                 📝 Using demo data
               </div>
             )}
-            {dataSource === 'firestore' && completedChallenges.size > 0 && (
-              <div className="rounded-lg bg-green-50 px-4 py-2 text-sm text-green-800">
-                ✅ {completedChallenges.size} completed
-              </div>
-            )}
+          </div>
+
+          {/* Progress Stats */}
+          <div className="bg-white rounded-lg border p-6">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-semibold text-gray-900">Your Progress</h2>
+              <span className="text-sm text-gray-600">
+                {totalProgress.completed} / {totalProgress.total} challenges
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+              <div 
+                className="bg-primary-600 h-3 rounded-full transition-all duration-500"
+                style={{ width: `${totalProgress.percentage}%` }}
+              />
+            </div>
+            <div className="flex items-center gap-4 text-sm text-gray-600">
+              <span>📊 {totalProgress.percentage.toFixed(0)}% Complete</span>
+              <span>•</span>
+              <span>⭐ ~{totalProgress.points} points earned</span>
+            </div>
           </div>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {challenges.map((challenge) => (
-            <ChallengeCard
-              key={challenge.id}
-              challenge={challenge}
-              isLocked={false}
-              isCompleted={completedChallenges.get(challenge.id) || false}
-            />
-          ))}
+        {/* Modules */}
+        <div className="space-y-6">
+          {modules.map((module) => {
+            const moduleChallenges = getChallengesByModule(module.id)
+            const progress = getModuleProgress(module.id)
+            const isExpanded = expandedModules.has(module.id)
+            const locked = isModuleLocked(module)
+
+            return (
+              <div key={module.id} className="bg-white rounded-lg border overflow-hidden">
+                {/* Module Header */}
+                <button
+                  onClick={() => !locked && toggleModule(module.id)}
+                  className={`w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition-colors ${locked ? 'cursor-not-allowed opacity-60' : ''}`}
+                  disabled={locked}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`text-3xl`}>{module.icon}</div>
+                    <div className="text-left">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-xl font-bold text-gray-900">{module.title}</h3>
+                        {locked && <Lock className="h-4 w-4 text-gray-400" />}
+                      </div>
+                      <p className="text-sm text-gray-600">{module.description}</p>
+                      <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
+                        <span>{module.totalChallenges} challenges</span>
+                        <span>•</span>
+                        <span>{module.totalPoints} points</span>
+                        {progress.completed > 0 && (
+                          <>
+                            <span>•</span>
+                            <span className="text-green-600 font-medium">
+                              {progress.completed}/{progress.total} completed
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    {/* Progress Circle */}
+                    <div className="relative w-16 h-16">
+                      <svg className="transform -rotate-90 w-16 h-16">
+                        <circle
+                          cx="32"
+                          cy="32"
+                          r="28"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                          fill="none"
+                          className="text-gray-200"
+                        />
+                        <circle
+                          cx="32"
+                          cy="32"
+                          r="28"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                          fill="none"
+                          strokeDasharray={`${2 * Math.PI * 28}`}
+                          strokeDashoffset={`${2 * Math.PI * 28 * (1 - progress.percentage / 100)}`}
+                          className={`${module.color.replace('bg-', 'text-')} transition-all duration-500`}
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xs font-bold text-gray-700">
+                          {progress.percentage.toFixed(0)}%
+                        </span>
+                      </div>
+                    </div>
+                    {!locked && (
+                      isExpanded ? 
+                        <ChevronDown className="h-5 w-5 text-gray-400" /> : 
+                        <ChevronRight className="h-5 w-5 text-gray-400" />
+                    )}
+                  </div>
+                </button>
+
+                {/* Module Challenges */}
+                {isExpanded && !locked && (
+                  <div className="px-6 py-4 bg-gray-50 border-t">
+                    {moduleChallenges.length > 0 ? (
+                      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                        {moduleChallenges.map((challenge) => (
+                          <ChallengeCard
+                            key={challenge.id}
+                            challenge={challenge}
+                            isLocked={false}
+                            isCompleted={completedChallenges.get(challenge.id) || false}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-center text-gray-500 py-8">
+                        No challenges available in this module yet.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* Locked Message */}
+                {locked && isExpanded && (
+                  <div className="px-6 py-8 bg-gray-50 border-t text-center">
+                    <Lock className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-600 font-medium mb-1">Module Locked</p>
+                    <p className="text-sm text-gray-500">
+                      Complete {module.prerequisites.map(id => 
+                        modules.find(m => m.id === id)?.title
+                      ).join(' and ')} first
+                    </p>
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
 
         {challenges.length === 0 && (
-          <div className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center">
+          <div className="rounded-lg border-2 border-dashed border-gray-300 p-12 text-center bg-white">
             <GitBranch className="mx-auto h-12 w-12 text-gray-400" />
             <h3 className="mt-4 text-lg font-semibold text-gray-900">No challenges yet</h3>
             <p className="mt-2 text-gray-600">
-              Challenges will appear here once they are added to the platform.
+              Run the seed script to add challenges to your platform.
             </p>
           </div>
         )}
       </main>
     </div>
   )
-}
-
-// Mock data fallback
-function getMockChallenges(): Challenge[] {
-  return [
-    {
-      id: '1',
-      moduleId: 'git-basics',
-      title: 'Initialize Your First Repository',
-      description: 'Learn how to create a new Git repository and understand what initialization means.',
-      instructions: 'Use the git init command to create a new repository in your project folder.',
-      orderIndex: 1,
-      difficulty: 'beginner',
-      estimatedTimeMinutes: 5,
-      points: 10,
-      startingFiles: [],
-      expectedCommands: ['git init'],
-      validationTests: [
-        {
-          id: 'test-1',
-          description: 'Repository is initialized',
-          gitCheck: { type: 'status', value: 'initialized' },
-        },
-      ],
-      hints: [
-        { id: 'hint-1', level: 1, text: 'Type git init to initialize a repository' },
-      ],
-      solution: {
-        commands: ['git init'],
-        explanation: 'The git init command creates a new Git repository in the current directory.',
-      },
-      tags: ['git', 'basics', 'init'],
-      prerequisites: [],
-      isPublished: true,
-      createdBy: 'system',
-      createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-      updatedAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-    },
-    {
-      id: '2',
-      moduleId: 'git-basics',
-      title: 'Making Your First Commit',
-      description: 'Learn how to stage files and create your first commit with a meaningful message.',
-      instructions: 'Initialize git, create a file called README.md, add it to staging, and commit it with a message containing the word initial.',
-      orderIndex: 2,
-      difficulty: 'beginner',
-      estimatedTimeMinutes: 10,
-      points: 15,
-      startingFiles: [],
-      expectedCommands: ['git init', 'touch README.md', 'git add README.md', 'git commit -m'],
-      validationTests: [
-        {
-          id: 'test-1',
-          description: 'Repository is initialized',
-          gitCheck: { type: 'status', value: 'initialized' },
-        },
-        {
-          id: 'test-2',
-          description: 'At least one commit was made with initial in the message',
-          gitCheck: { type: 'commit', value: 'initial' },
-        },
-      ],
-      hints: [
-        { id: 'hint-1', level: 1, text: 'First initialize git with git init' },
-        { id: 'hint-2', level: 2, text: 'Create a file with touch README.md' },
-        { id: 'hint-3', level: 3, text: 'Add the file with git add README.md' },
-        { id: 'hint-4', level: 4, text: 'Commit with git commit -m "Initial commit"' },
-      ],
-      solution: {
-        commands: ['git init', 'touch README.md', 'git add README.md', 'git commit -m "Initial commit"'],
-        explanation: 'First initialize Git, create a file, stage it, then commit with a descriptive message.',
-      },
-      tags: ['git', 'basics', 'commit'],
-      prerequisites: [],
-      isPublished: true,
-      createdBy: 'system',
-      createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-      updatedAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-    },
-    {
-      id: '3',
-      moduleId: 'git-basics',
-      title: 'Working with Branches',
-      description: 'Create a new branch and learn why branches are important for development.',
-      instructions: 'Initialize git, create a new feature branch, and switch to it.',
-      orderIndex: 3,
-      difficulty: 'intermediate',
-      estimatedTimeMinutes: 8,
-      points: 20,
-      startingFiles: [],
-      expectedCommands: ['git init', 'git branch feature', 'git checkout feature'],
-      validationTests: [
-        {
-          id: 'test-1',
-          description: 'Git repository is initialized',
-          gitCheck: { type: 'status', value: 'initialized' },
-        },
-        {
-          id: 'test-2',
-          description: 'Feature branch exists',
-          gitCheck: { type: 'branch', value: 'feature' },
-        },
-      ],
-      hints: [
-        { id: 'hint-1', level: 1, text: 'First initialize git with git init' },
-        { id: 'hint-2', level: 2, text: 'Create a branch with git branch feature' },
-        { id: 'hint-3', level: 3, text: 'Switch branches with git checkout feature' },
-      ],
-      solution: {
-        commands: ['git init', 'git branch feature', 'git checkout feature'],
-        explanation: 'Initialize Git first, then create a branch and switch to it. Branches allow you to work on features independently.',
-      },
-      tags: ['git', 'branches'],
-      prerequisites: [],
-      isPublished: true,
-      createdBy: 'system',
-      createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-      updatedAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-    },
-  ]
 }
