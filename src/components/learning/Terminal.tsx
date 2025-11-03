@@ -1,5 +1,6 @@
 'use client'
 
+import { GitErrorHandler } from '@/lib/git-simulator/ErrorHandler'
 import { useState, useRef, useEffect } from 'react'
 import { Terminal as TerminalIcon, Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
@@ -30,6 +31,7 @@ export function Terminal({
       timestamp: Date.now(),
     },
   ])
+  const errorHandler = useRef(new GitErrorHandler())
   const [currentInput, setCurrentInput] = useState('')
   const [commandHistory, setCommandHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
@@ -55,58 +57,79 @@ const [currentDirectory] = useState(initialDirectory)
   }
 
   // Handle command submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!currentInput.trim() || isProcessing) return
+ const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault()
+  if (!currentInput.trim() || isProcessing) return
 
-    const command = currentInput.trim()
+  const command = currentInput.trim()
 
-    // Add command to history
-    setCommandHistory((prev) => [...prev, command])
-    setHistoryIndex(-1)
+  // Add command to history
+  setCommandHistory((prev) => [...prev, command])
+  setHistoryIndex(-1)
 
-    // Add command line to terminal
-    setLines((prev) => [
-      ...prev,
-      {
-        type: 'command',
-        content: command,
-        timestamp: Date.now(),
-      },
-    ])
+  // Add command line to terminal
+  setLines((prev) => [
+    ...prev,
+    {
+      type: 'command',
+      content: command,
+      timestamp: Date.now(),
+    },
+  ])
 
-    // Clear input
-    setCurrentInput('')
-    setIsProcessing(true)
+  // Clear input
+  setCurrentInput('')
+  setIsProcessing(true)
 
-    try {
-      // Execute command
-      const result = onCommand
-        ? await onCommand(command)
-        : await executeBuiltInCommand(command)
-
-      // Add output to terminal
-      setLines((prev) => [
-        ...prev,
-        {
-          type: result.type,
-          content: result.output,
-          timestamp: Date.now(),
-        },
-      ])
-    } catch (error) {
+  try {
+    // ✨ NEW: Check for errors first
+    const error = errorHandler.current.checkCommand(command, [])
+    
+    if (error) {
       setLines((prev) => [
         ...prev,
         {
           type: 'error',
-          content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+          content: error.message,
           timestamp: Date.now(),
         },
+        ...(error.suggestion ? [{
+          type: 'output' as const,
+          content: `💡 Hint: ${error.suggestion}`,
+          timestamp: Date.now(),
+        }] : []),
       ])
-    } finally {
       setIsProcessing(false)
+      return
     }
+
+    // Execute command normally
+    const result = onCommand
+      ? await onCommand(command)
+      : await executeBuiltInCommand(command)
+
+    // Add output to terminal
+    setLines((prev) => [
+      ...prev,
+      {
+        type: result.type,
+        content: result.output,
+        timestamp: Date.now(),
+      },
+    ])
+  } catch (error) {
+    setLines((prev) => [
+      ...prev,
+      {
+        type: 'error',
+        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: Date.now(),
+      },
+    ])
+  } finally {
+    setIsProcessing(false)
   }
+}
 
   // Built-in commands (fallback if no onCommand provided)
   const executeBuiltInCommand = async (

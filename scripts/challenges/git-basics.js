@@ -1,4 +1,4 @@
-export default [
+const gitBasicsChallenges = [
   {
     moduleId: 'git-basics',
     title: 'Initialize Your First Repository',
@@ -460,3 +460,5 @@ export default [
     createdBy: 'system',
   },
 ]
+
+export default gitBasicsChallenges

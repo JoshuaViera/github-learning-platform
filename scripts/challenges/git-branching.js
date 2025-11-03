@@ -1,4 +1,4 @@
-export default [
+const gitBranchingChallenges = [
   {
     moduleId: 'git-branching',
     title: 'Creating Feature Branches',
@@ -399,3 +399,4 @@ export default [
     createdBy: 'system',
   },
 ]
+export default gitBranchingChallenges

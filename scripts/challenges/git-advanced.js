@@ -1,4 +1,4 @@
-export default [
+const gitAdvancedChallenges = [
   {
     moduleId: 'git-advanced',
     title: 'Stashing Work in Progress',
@@ -138,3 +138,5 @@ A temporary shelf for uncommitted changes. Like hitting "pause" on your work!
     createdBy: 'system',
   },
 ]
+
+export default gitAdvancedChallenges

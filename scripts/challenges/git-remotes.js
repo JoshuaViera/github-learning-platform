@@ -1,4 +1,4 @@
-export default [
+const gitRemotesChallenges = [
   {
     moduleId: 'git-remotes',
     title: 'Understanding Remote Repositories',
@@ -320,3 +320,4 @@ export default [
     createdBy: 'system',
   },
 ]
+export default gitRemotesChallenges

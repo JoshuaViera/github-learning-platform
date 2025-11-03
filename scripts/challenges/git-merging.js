@@ -1,4 +1,4 @@
-export default [
+const gitMergingChallenges = [
   {
     moduleId: 'git-merging',
     title: 'Your First Merge - Fast Forward',
@@ -207,3 +207,4 @@ When two branches change the SAME lines in the SAME file, Git can't auto-merge.`
     createdBy: 'system',
   },
 ]
+export default gitMergingChallenges

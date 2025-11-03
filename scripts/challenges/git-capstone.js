@@ -1,4 +1,4 @@
-export default [
+const gitCapstoneChallenges = [
   {
     moduleId: 'git-capstone',
     title: 'The Complete Git Workflow',
@@ -84,3 +84,4 @@ export default [
     createdBy: 'system',
   },
 ]
+export default gitCapstoneChallenges
