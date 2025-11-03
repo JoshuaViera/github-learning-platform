@@ -12,29 +12,39 @@ import { Challenge } from '@/types'
 export default function ChallengesPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
+  const [authChecked, setAuthChecked] = useState(false)
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [completedChallenges, setCompletedChallenges] = useState<Map<string, boolean>>(new Map())
   const [dataSource, setDataSource] = useState<'firestore' | 'mock'>('mock')
 
   useEffect(() => {
-    // Wait for Firebase to restore auth state
+    let mounted = true
+
     const unsubscribe = onAuthStateChange((user) => {
+      if (!mounted) return
+
+      setAuthChecked(true)
+
       if (!user) {
         router.push('/login')
         return
       }
 
-      // User is authenticated, load data
-      loadChallenges()
-      loadUserProgress(user.uid)
+      // Only load data once
+      if (!authChecked) {
+        loadChallenges()
+        loadUserProgress(user.uid)
+      }
     })
 
-    return () => unsubscribe()
-  }, [router])
+    return () => {
+      mounted = false
+      unsubscribe()
+    }
+  }, [router, authChecked])
 
   const loadChallenges = async () => {
     try {
-      // Try to fetch from Firestore
       const firestoreChallenges = await getChallenges()
       
       if (firestoreChallenges.length > 0) {
@@ -45,7 +55,6 @@ export default function ChallengesPage() {
         return
       }
       
-      // If Firestore is empty, use mock data
       console.log('📝 Firestore empty, using mock data')
       const mockChallenges = getMockChallenges()
       setChallenges(mockChallenges)
@@ -64,7 +73,6 @@ export default function ChallengesPage() {
     try {
       const progress = await getUserProgress(userId)
       
-      // Create a map of completed challenge IDs
       const completedMap = new Map<string, boolean>()
       progress.forEach(p => {
         if (p.status === 'completed') {
@@ -79,7 +87,7 @@ export default function ChallengesPage() {
     }
   }
 
-  if (loading) {
+  if (!authChecked || loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary-600" />
