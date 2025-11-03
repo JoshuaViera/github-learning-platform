@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, query, where, orderBy, addDoc, updateDoc, Timestamp } from 'firebase/firestore'
+import { collection, doc, getDoc, getDocs, query, where, addDoc, updateDoc, Timestamp } from 'firebase/firestore'
 import { db } from './config'
 import { Challenge, Module, UserProgress } from '@/types'
 
@@ -8,13 +8,17 @@ import { Challenge, Module, UserProgress } from '@/types'
 
 export async function getModules(): Promise<Module[]> {
   const modulesRef = collection(db, 'modules')
-  const q = query(modulesRef, where('isPublished', '==', true), orderBy('orderIndex', 'asc'))
-  const snapshot = await getDocs(q)
+  const snapshot = await getDocs(modulesRef)
   
-  return snapshot.docs.map((doc) => ({
+  // Filter and sort in JavaScript to avoid index requirement
+  const modules = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
   })) as Module[]
+  
+  return modules
+    .filter(m => m.isPublished !== false)
+    .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0))
 }
 
 export async function getModule(moduleId: string): Promise<Module | null> {
@@ -36,22 +40,26 @@ export async function getModule(moduleId: string): Promise<Module | null> {
 export async function getChallenges(moduleId?: string): Promise<Challenge[]> {
   const challengesRef = collection(db, 'challenges')
   
-  let q = query(
-    challengesRef,
-    where('isPublished', '==', true),
-    orderBy('orderIndex', 'asc')
-  )
+  // Fetch all challenges (no compound query to avoid index requirement)
+  const snapshot = await getDocs(challengesRef)
   
-  if (moduleId) {
-    q = query(q, where('moduleId', '==', moduleId))
-  }
-  
-  const snapshot = await getDocs(q)
-  
-  return snapshot.docs.map((doc) => ({
+  // Filter and sort in JavaScript
+  let challenges = snapshot.docs.map((doc) => ({
     id: doc.id,
     ...doc.data(),
   })) as Challenge[]
+  
+  // Filter by moduleId if provided
+  if (moduleId) {
+    challenges = challenges.filter(c => c.moduleId === moduleId)
+  }
+  
+  // Filter published only and sort by orderIndex
+  challenges = challenges
+    .filter(c => c.isPublished !== false) // Show if isPublished is true or undefined
+    .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0))
+  
+  return challenges
 }
 
 export async function getChallenge(challengeId: string): Promise<Challenge | null> {
@@ -146,7 +154,7 @@ export async function recordChallengeAttempt(
   userId: string,
   challengeId: string,
   submittedCommands: string[],
-  testResults: any[],
+  testResults: Record<string, unknown>[],
   isCorrect: boolean
 ): Promise<void> {
   const attemptsRef = collection(db, 'challenge_attempts')

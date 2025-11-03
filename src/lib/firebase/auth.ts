@@ -1,3 +1,4 @@
+import { browserLocalPersistence, setPersistence } from 'firebase/auth'
 import {
   signInWithPopup,
   signOut as firebaseSignOut,
@@ -23,6 +24,8 @@ export async function signInWithGoogle(): Promise<User> {
     allowedDomain: ALLOWED_DOMAIN,
   })
 
+  
+
   const provider = new GoogleAuthProvider()
   provider.setCustomParameters({
     prompt: 'select_account', // Always show account selection
@@ -32,6 +35,7 @@ export async function signInWithGoogle(): Promise<User> {
     console.log('🔵 Opening popup...')
     const result = await signInWithPopup(auth, provider)
     console.log('🟢 Popup succeeded!', result.user.email)
+
     const user = result.user
 
     // Verify email domain
@@ -48,9 +52,8 @@ export async function signInWithGoogle(): Promise<User> {
 
     // Create or update user profile in Firestore
     await createOrUpdateUserProfile(user)
-    
-    console.log('🟢 Sign in complete!')
 
+    console.log('🟢 Sign in complete!')
     return user
   } catch (error: unknown) {
     console.log('🔴 Sign in error:', error)
@@ -82,7 +85,7 @@ export async function signOut(): Promise<void> {
  * Create or update user profile in Firestore
  */
 async function createOrUpdateUserProfile(user: User): Promise<void> {
-  const userRef = doc(db, 'profiles', user.uid)
+  const userRef = doc(db, 'users', user.uid)  // Changed from 'profiles' to 'users'
 
   try {
     const userDoc = await getDoc(userRef)

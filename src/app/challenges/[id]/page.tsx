@@ -8,6 +8,7 @@ import { Terminal } from '@/components/learning/Terminal'
 import { CommandExecutor } from '@/lib/git-simulator/CommandExecutor'
 import { ValidationEngine } from '@/lib/git-simulator/ValidationEngine'
 import { getCurrentUser } from '@/lib/firebase/auth'
+import { getChallenge, updateUserProgress, markChallengeComplete } from '@/lib/firebase/challenges'
 import Button from '@/components/ui/button'
 import { Challenge } from '@/types'
 
@@ -25,6 +26,7 @@ export default function ChallengePage() {
   const [showSolution, setShowSolution] = useState(false)
   const [validationResults, setValidationResults] = useState<any[]>([])
   const [isComplete, setIsComplete] = useState(false)
+  const [userId, setUserId] = useState<string | null>(null)
 
   useEffect(() => {
     const user = getCurrentUser()
@@ -33,131 +35,34 @@ export default function ChallengePage() {
       return
     }
 
+    setUserId(user.uid)
     loadChallenge()
   }, [router, challengeId])
 
   const loadChallenge = async () => {
-    const mockChallenges: Record<string, Challenge> = {
-      '1': {
-        id: '1',
-        moduleId: 'git-basics',
-        title: 'Initialize Your First Repository',
-        description: 'Learn how to create a new Git repository and understand what initialization means.',
-        instructions: 'Use the git init command to create a new repository in your project folder.',
-        orderIndex: 1,
-        difficulty: 'beginner',
-        estimatedTimeMinutes: 5,
-        points: 10,
-        startingFiles: [],
-        expectedCommands: ['git init'],
-        validationTests: [
-          {
-            id: 'test-1',
-            description: 'Repository is initialized',
-            gitCheck: { type: 'status', value: 'initialized' },
-          },
-        ],
-        hints: [
-          { id: 'hint-1', level: 1, text: 'Type git init to initialize a repository' },
-        ],
-        solution: {
-          commands: ['git init'],
-          explanation: 'The git init command creates a new Git repository in the current directory.',
-        },
-        tags: ['git', 'basics', 'init'],
-        prerequisites: [],
-        isPublished: true,
-        createdBy: 'system',
-        createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-        updatedAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-      },
-      '2': {
-        id: '2',
-        moduleId: 'git-basics',
-        title: 'Making Your First Commit',
-        description: 'Learn how to stage files and create your first commit with a meaningful message.',
-        instructions: 'Initialize git, create a file called README.md, add it to staging, and commit it with a message containing the word initial.',
-        orderIndex: 2,
-        difficulty: 'beginner',
-        estimatedTimeMinutes: 10,
-        points: 15,
-        startingFiles: [],
-        expectedCommands: ['git init', 'touch README.md', 'git add README.md', 'git commit -m'],
-        validationTests: [
-          {
-            id: 'test-1',
-            description: 'Repository is initialized',
-            gitCheck: { type: 'status', value: 'initialized' },
-          },
-          {
-            id: 'test-2',
-            description: 'At least one commit was made with initial in the message',
-            gitCheck: { type: 'commit', value: 'initial' },
-          },
-        ],
-        hints: [
-          { id: 'hint-1', level: 1, text: 'First initialize git with git init' },
-          { id: 'hint-2', level: 2, text: 'Create a file with touch README.md' },
-          { id: 'hint-3', level: 3, text: 'Add the file with git add README.md' },
-          { id: 'hint-4', level: 4, text: 'Commit with git commit -m "Initial commit"' },
-        ],
-        solution: {
-          commands: ['git init', 'touch README.md', 'git add README.md', 'git commit -m "Initial commit"'],
-          explanation: 'First initialize Git, create a file, stage it, then commit with a descriptive message containing the word initial.',
-        },
-        tags: ['git', 'basics', 'commit'],
-        prerequisites: ['1'],
-        isPublished: true,
-        createdBy: 'system',
-        createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-        updatedAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-      },
-      '3': {
-        id: '3',
-        moduleId: 'git-basics',
-        title: 'Working with Branches',
-        description: 'Create a new branch and learn why branches are important for development.',
-        instructions: 'Initialize git, create a new feature branch, and switch to it.',
-        orderIndex: 3,
-        difficulty: 'intermediate',
-        estimatedTimeMinutes: 8,
-        points: 20,
-        startingFiles: [],
-        expectedCommands: ['git init', 'git branch feature', 'git checkout feature'],
-        validationTests: [
-          {
-            id: 'test-1',
-            description: 'Git repository is initialized',
-            gitCheck: { type: 'status', value: 'initialized' },
-          },
-          {
-            id: 'test-2',
-            description: 'Feature branch exists',
-            gitCheck: { type: 'branch', value: 'feature' },
-          },
-        ],
-        hints: [
-          { id: 'hint-1', level: 1, text: 'First initialize git with git init' },
-          { id: 'hint-2', level: 2, text: 'Create a branch with git branch feature' },
-          { id: 'hint-3', level: 3, text: 'Switch branches with git checkout feature' },
-        ],
-        solution: {
-          commands: ['git init', 'git branch feature', 'git checkout feature'],
-          explanation: 'Initialize Git first, then create a branch and switch to it. Branches allow you to work on features independently.',
-        },
-        tags: ['git', 'branches'],
-        prerequisites: ['1', '2'],
-        isPublished: true,
-        createdBy: 'system',
-        createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-        updatedAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
-      },
+    try {
+      // Try Firestore first
+      const firestoreChallenge = await getChallenge(challengeId)
+      
+      if (firestoreChallenge) {
+        console.log('✅ Loaded challenge from Firestore')
+        setChallenge(firestoreChallenge)
+        setLoading(false)
+        return
+      }
+    } catch (error) {
+      console.error('⚠️ Firestore fetch failed:', error)
     }
 
+    // Fallback to mock data
+    const mockChallenges = getMockChallenges()
     const foundChallenge = mockChallenges[challengeId]
+    
     if (foundChallenge) {
+      console.log('📝 Using mock challenge data')
       setChallenge(foundChallenge)
     }
+    
     setLoading(false)
   }
 
@@ -171,7 +76,7 @@ export default function ChallengePage() {
     return result
   }
 
-  const handleValidate = () => {
+  const handleValidate = async () => {
     if (!challenge) return
 
     const results = validator.validateChallenge(challenge.validationTests)
@@ -179,6 +84,16 @@ export default function ChallengePage() {
 
     const allPassed = validator.allTestsPassed(results)
     setIsComplete(allPassed)
+
+    // Save to Firestore if user is logged in
+    if (allPassed && userId) {
+      try {
+        await markChallengeComplete(userId, challenge.id, challenge.points)
+        console.log('✅ Progress saved to Firestore')
+      } catch (error) {
+        console.error('⚠️ Failed to save progress:', error)
+      }
+    }
   }
 
   const handleReset = () => {
@@ -190,9 +105,21 @@ export default function ChallengePage() {
     window.location.reload()
   }
 
-  const handleShowHint = () => {
+  const handleShowHint = async () => {
     if (challenge && hintsUsed < challenge.hints.length) {
       setHintsUsed(hintsUsed + 1)
+      
+      // Track hints used in Firestore
+      if (userId) {
+        try {
+          await updateUserProgress(userId, challenge.id, {
+            hintsUsed: hintsUsed + 1,
+            status: 'in_progress',
+          })
+        } catch (error) {
+          console.error('⚠️ Failed to save hint usage:', error)
+        }
+      }
     }
   }
 
@@ -360,4 +287,124 @@ export default function ChallengePage() {
       </main>
     </div>
   )
+}
+
+// Mock data fallback
+function getMockChallenges(): Record<string, Challenge> {
+  return {
+    '1': {
+      id: '1',
+      moduleId: 'git-basics',
+      title: 'Initialize Your First Repository',
+      description: 'Learn how to create a new Git repository and understand what initialization means.',
+      instructions: 'Use the git init command to create a new repository in your project folder.',
+      orderIndex: 1,
+      difficulty: 'beginner',
+      estimatedTimeMinutes: 5,
+      points: 10,
+      startingFiles: [],
+      expectedCommands: ['git init'],
+      validationTests: [
+        {
+          id: 'test-1',
+          description: 'Repository is initialized',
+          gitCheck: { type: 'status', value: 'initialized' },
+        },
+      ],
+      hints: [
+        { id: 'hint-1', level: 1, text: 'Type git init to initialize a repository' },
+      ],
+      solution: {
+        commands: ['git init'],
+        explanation: 'The git init command creates a new Git repository in the current directory.',
+      },
+      tags: ['git', 'basics', 'init'],
+      prerequisites: [],
+      isPublished: true,
+      createdBy: 'system',
+      createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
+      updatedAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
+    },
+    '2': {
+      id: '2',
+      moduleId: 'git-basics',
+      title: 'Making Your First Commit',
+      description: 'Learn how to stage files and create your first commit with a meaningful message.',
+      instructions: 'Initialize git, create a file called README.md, add it to staging, and commit it with a message containing the word initial.',
+      orderIndex: 2,
+      difficulty: 'beginner',
+      estimatedTimeMinutes: 10,
+      points: 15,
+      startingFiles: [],
+      expectedCommands: ['git init', 'touch README.md', 'git add README.md', 'git commit -m'],
+      validationTests: [
+        {
+          id: 'test-1',
+          description: 'Repository is initialized',
+          gitCheck: { type: 'status', value: 'initialized' },
+        },
+        {
+          id: 'test-2',
+          description: 'At least one commit was made with initial in the message',
+          gitCheck: { type: 'commit', value: 'initial' },
+        },
+      ],
+      hints: [
+        { id: 'hint-1', level: 1, text: 'First initialize git with git init' },
+        { id: 'hint-2', level: 2, text: 'Create a file with touch README.md' },
+        { id: 'hint-3', level: 3, text: 'Add the file with git add README.md' },
+        { id: 'hint-4', level: 4, text: 'Commit with git commit -m "Initial commit"' },
+      ],
+      solution: {
+        commands: ['git init', 'touch README.md', 'git add README.md', 'git commit -m "Initial commit"'],
+        explanation: 'First initialize Git, create a file, stage it, then commit with a descriptive message.',
+      },
+      tags: ['git', 'basics', 'commit'],
+      prerequisites: [],
+      isPublished: true,
+      createdBy: 'system',
+      createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
+      updatedAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
+    },
+    '3': {
+      id: '3',
+      moduleId: 'git-basics',
+      title: 'Working with Branches',
+      description: 'Create a new branch and learn why branches are important for development.',
+      instructions: 'Initialize git, create a new feature branch, and switch to it.',
+      orderIndex: 3,
+      difficulty: 'intermediate',
+      estimatedTimeMinutes: 8,
+      points: 20,
+      startingFiles: [],
+      expectedCommands: ['git init', 'git branch feature', 'git checkout feature'],
+      validationTests: [
+        {
+          id: 'test-1',
+          description: 'Git repository is initialized',
+          gitCheck: { type: 'status', value: 'initialized' },
+        },
+        {
+          id: 'test-2',
+          description: 'Feature branch exists',
+          gitCheck: { type: 'branch', value: 'feature' },
+        },
+      ],
+      hints: [
+        { id: 'hint-1', level: 1, text: 'First initialize git with git init' },
+        { id: 'hint-2', level: 2, text: 'Create a branch with git branch feature' },
+        { id: 'hint-3', level: 3, text: 'Switch branches with git checkout feature' },
+      ],
+      solution: {
+        commands: ['git init', 'git branch feature', 'git checkout feature'],
+        explanation: 'Initialize Git first, then create a branch and switch to it. Branches allow you to work on features independently.',
+      },
+      tags: ['git', 'branches'],
+      prerequisites: [],
+      isPublished: true,
+      createdBy: 'system',
+      createdAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
+      updatedAt: { seconds: Date.now() / 1000, nanoseconds: 0 } as any,
+    },
+  }
 }
