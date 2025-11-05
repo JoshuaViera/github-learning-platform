@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Users, Trophy, TrendingUp, Activity } from 'lucide-react'
+import Link from 'next/link'
+import { Users, Trophy, TrendingUp, Activity, BarChart3 } from 'lucide-react'
 import { onAuthStateChange } from '@/lib/firebase/auth'
 import { getAllUsers, getAllProgress, getChallenges, AdminUser } from '@/lib/firebase/admin'
 import { UserProgress } from '@/types'
@@ -158,10 +159,22 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header with Analytics Link */}
       <header className="border-b bg-white">
         <div className="container mx-auto px-4 py-6">
-          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="mt-1 text-gray-600">Platform analytics and user management</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+              <p className="mt-1 text-gray-600">Platform analytics and user management</p>
+            </div>
+            <Link
+              href="/analytics"
+              className="flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 font-semibold text-white transition-colors hover:bg-primary-700"
+            >
+              <BarChart3 className="h-5 w-5" />
+              View Analytics
+            </Link>
+          </div>
         </div>
       </header>
 
