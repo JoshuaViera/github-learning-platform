@@ -109,17 +109,19 @@ export interface UserProgress {
   id: string
   userId: string
   challengeId: string
-  status: ChallengeStatus
+  status: 'not-started' | 'in-progress' | 'completed' | 'in_progress'  // Added both variants
+  startedAt?: Date
+  completedAt?: Date
   attempts: number
   hintsUsed: number
-  solutionViewed: boolean
-  startedAt: Timestamp | null
-  completedAt: Timestamp | null
+  commandsExecuted: string[]
   timeSpentSeconds: number
-  pointsEarned: number
-  savedTerminalState: TerminalState | null
-  createdAt: Timestamp
-  updatedAt: Timestamp
+  score?: number  // ← MAKE SURE THIS EXISTS
+  solutionViewed?: boolean
+  pointsEarned?: number
+  savedTerminalState?: any
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 export interface TerminalState {
