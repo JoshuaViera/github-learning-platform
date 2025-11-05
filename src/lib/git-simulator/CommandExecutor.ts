@@ -4,6 +4,7 @@ import { CommandParser } from './CommandParser'
 export interface CommandResult {
   output: string
   type: 'output' | 'error' | 'success'
+  success?: boolean 
 }
 
 export class CommandExecutor {
