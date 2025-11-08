@@ -1,3 +1,4 @@
+// scripts/challenges/index.js
 import gitBasics from './git-basics.js'
 import gitBranching from './git-branching.js'
 import gitMerging from './git-merging.js'

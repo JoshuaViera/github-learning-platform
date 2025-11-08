@@ -1,3 +1,4 @@
+// src/lib/git-simulator/ErrorHandler.ts
 export interface GitError {
   type: 'syntax' | 'semantic' | 'state' | 'suggestion'
   message: string

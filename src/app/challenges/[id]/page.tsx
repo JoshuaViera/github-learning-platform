@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+// src/app/challenges/[id]/page.tsx
 'use client'
-
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import Link from 'next/link'
@@ -17,6 +17,7 @@ import { CommandRecorder } from '@/lib/git-simulator/CommandRecorder'
 import { GitTree } from '@/components/learning/GitTree'
 import { CommandHistory } from '@/components/learning/CommandHistory'
 import { SolutionModal } from '@/components/learning/SolutionModal'
+import { ChallengeExplanation } from '@/components/learning/ChallengeExplanation'
 import { Timestamp } from 'firebase/firestore'
 
 export default function ChallengePage() {
@@ -42,20 +43,19 @@ export default function ChallengePage() {
   const playbackInterval = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
-  const user = getCurrentUser()
-  if (!user) {
-    router.push('/login')
-    return
-  }
+    const user = getCurrentUser()
+    if (!user) {
+      router.push('/login')
+      return
+    }
 
-  setUserId(user.uid)
-  loadChallenge()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [router, challengeId])
+    setUserId(user.uid)
+    loadChallenge()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [router, challengeId])
 
   const loadChallenge = async () => {
     try {
-      // Try Firestore first
       const firestoreChallenge = await getChallenge(challengeId)
       
       if (firestoreChallenge) {
@@ -68,7 +68,6 @@ export default function ChallengePage() {
       console.error('⚠️ Firestore fetch failed:', error)
     }
 
-    // Fallback to mock data
     const mockChallenges = getMockChallenges()
     const foundChallenge = mockChallenges[challengeId]
     
@@ -87,7 +86,6 @@ export default function ChallengePage() {
       return { output: '', type: 'output' as const }
     }
 
-    // Record command in history
     const stateBefore = {}
     const stateAfter = executor.getGitEngine().getState()
     
@@ -99,7 +97,6 @@ export default function ChallengePage() {
       !result.output.includes('Error') && !result.output.includes('error')
     )
 
-    // Update visualization
     if (stateAfter && stateAfter.commits) {
       const tree = visualizer.current.visualize(stateAfter)
       setVisualTree(tree)
@@ -117,7 +114,6 @@ export default function ChallengePage() {
     const allPassed = validator.allTestsPassed(results)
     setIsComplete(allPassed)
 
-    // Save to Firestore if user is logged in
     if (allPassed && userId) {
       try {
         await markChallengeComplete(userId, challenge.id, challenge.points)
@@ -147,7 +143,6 @@ export default function ChallengePage() {
     if (challenge && hintsUsed < challenge.hints.length) {
       setHintsUsed(hintsUsed + 1)
       
-      // Track hints used in Firestore
       if (userId) {
         try {
           await updateUserProgress(userId, challenge.id, {
@@ -388,6 +383,11 @@ export default function ChallengePage() {
 
           {/* Right Column - Sidebar */}
           <div className="space-y-6">
+            {/* Explanation Section */}
+            {challenge.explanation && (
+              <ChallengeExplanation explanation={challenge.explanation} />
+            )}
+
             {/* Instructions */}
             <div className="rounded-lg border bg-white p-6">
               <h3 className="mb-3 text-lg font-semibold text-gray-900">Instructions</h3>
@@ -443,7 +443,7 @@ export default function ChallengePage() {
   )
 }
 
-// Mock data fallback
+// Mock data fallback with explanations
 function getMockChallenges(): Record<string, Challenge> {
   const createTimestamp = (): Timestamp => {
     return Timestamp.fromDate(new Date())
@@ -456,6 +456,33 @@ function getMockChallenges(): Record<string, Challenge> {
       title: 'Initialize Your First Repository',
       description: 'Learn how to create a new Git repository and understand what initialization means.',
       instructions: 'Use the git init command to create a new repository in your project folder.',
+      explanation: {
+        overview: "You're learning to create a Git repository, which is like turning on 'version control' for a folder. Think of it as activating a superpower that lets your folder remember every change you make.",
+        why: "Before you can use any Git features (saving versions, collaborating, etc.), you need to initialize a repository. This is always the very first step in any Git project. Every professional developer does this when starting a new project.",
+        vocabulary: [
+          {
+            term: "Initialize",
+            definition: "To set up or prepare something for first use. Like pressing 'Start' on a new video game save file.",
+            example: "'git init' sets up Git tracking in your folder"
+          },
+          {
+            term: "Repository (Repo)",
+            definition: "A folder that Git is watching and tracking. It contains all your files plus a hidden .git folder with the complete history.",
+            example: "After 'git init', your folder becomes a repository"
+          },
+          {
+            term: ".git folder",
+            definition: "A hidden folder that Git creates to store all tracking information. You never need to touch this directly.",
+            example: "Created automatically when you run 'git init'"
+          }
+        ],
+        realWorldExample: "Imagine starting a journal. Before writing anything, you first need to buy the journal book. 'git init' is like buying the journal - it sets up the space where you'll record your project's history.",
+        commonMistakes: [
+          "Running 'git init' multiple times (only need it once per project)",
+          "Forgetting to run 'git init' before other Git commands",
+          "Running 'git init' in the wrong folder"
+        ]
+      },
       orderIndex: 1,
       difficulty: 'beginner',
       estimatedTimeMinutes: 5,
@@ -483,6 +510,114 @@ function getMockChallenges(): Record<string, Challenge> {
       createdAt: createTimestamp(),
       updatedAt: createTimestamp(),
     },
-    // Add other mock challenges similarly...
+    '2': {
+      id: '2',
+      moduleId: 'git-basics',
+      title: 'Making Your First Commit',
+      description: 'Learn how to stage files and create your first commit with a meaningful message.',
+      instructions: 'Initialize git, create a file called README.md, add it to staging, and commit it with a message containing the word "initial".',
+      explanation: {
+        overview: "You're learning the fundamental Git workflow: create a file, stage it, and commit it. This is the core pattern you'll use thousands of times as a developer. Every change you want to save follows these same steps.",
+        why: "Commits are how you save progress in Git. Without commits, Git can't track any changes. Think of commits as checkpoints in a game - they're your safe points you can return to if something goes wrong.",
+        vocabulary: [
+          {
+            term: "Staging Area",
+            definition: "A preparation space where you put files before committing them. Like a shopping cart before checkout.",
+            example: "'git add README.md' puts the file in staging"
+          },
+          {
+            term: "Commit",
+            definition: "A snapshot of your project at a specific moment. Like taking a photo of your work.",
+            example: "'git commit -m message' creates the snapshot"
+          },
+          {
+            term: "Commit Message",
+            definition: "A short description explaining what changed in this commit. Helps you (and others) understand the history.",
+            example: "\"Initial commit\" or \"Add login feature\""
+          }
+        ],
+        realWorldExample: "Think of taking photos during a trip. First, you decide which moment to capture (staging), then you take the photo (commit), and finally you write a caption describing it (commit message). Later, you can look through all your photos to remember the journey.",
+        commonMistakes: [
+          "Forgetting to stage files with 'git add' before committing",
+          "Writing vague commit messages like 'update' or 'changes'",
+          "Trying to commit without initializing Git first",
+          "Not including a commit message"
+        ]
+      },
+      orderIndex: 2,
+      difficulty: 'beginner',
+      estimatedTimeMinutes: 10,
+      points: 15,
+      startingFiles: [],
+      expectedCommands: ['git init', 'touch README.md', 'git add README.md', 'git commit -m'],
+      validationTests: [
+        {
+          id: 'test-1',
+          description: 'Repository is initialized',
+          gitCheck: { type: 'status', value: 'initialized' },
+        },
+        {
+          id: 'test-2',
+          description: 'At least one commit was made with "initial" in the message',
+          gitCheck: { type: 'commit', value: 'initial' },
+        },
+      ],
+      hints: [
+        { id: 'hint-1', level: 1, text: 'First initialize git with git init' },
+        { id: 'hint-2', level: 2, text: 'Create a file with touch README.md' },
+        { id: 'hint-3', level: 3, text: 'Add the file with git add README.md' },
+        { id: 'hint-4', level: 4, text: 'Commit with git commit -m "Initial commit"' },
+      ],
+      solution: {
+        commands: ['git init', 'touch README.md', 'git add README.md', 'git commit -m "Initial commit"'],
+        explanation: 'First initialize Git, create a file, stage it, then commit with a descriptive message.',
+      },
+      tags: ['git', 'basics', 'commit'],
+      prerequisites: [],
+      isPublished: true,
+      createdBy: 'system',
+      createdAt: createTimestamp(),
+      updatedAt: createTimestamp(),
+    },
+    '3': {
+      id: '3',
+      moduleId: 'git-basics',
+      title: 'Working with Branches',
+      description: 'Create a new branch and learn why branches are important for development.',
+      instructions: 'Initialize git, create a new feature branch, and switch to it.',
+      orderIndex: 3,
+      difficulty: 'intermediate',
+      estimatedTimeMinutes: 8,
+      points: 20,
+      startingFiles: [],
+      expectedCommands: ['git init', 'git branch feature', 'git checkout feature'],
+      validationTests: [
+        {
+          id: 'test-1',
+          description: 'Git repository is initialized',
+          gitCheck: { type: 'status', value: 'initialized' },
+        },
+        {
+          id: 'test-2',
+          description: 'Feature branch exists',
+          gitCheck: { type: 'branch', value: 'feature' },
+        },
+      ],
+      hints: [
+        { id: 'hint-1', level: 1, text: 'First initialize git with git init' },
+        { id: 'hint-2', level: 2, text: 'Create a branch with git branch feature' },
+        { id: 'hint-3', level: 3, text: 'Switch branches with git checkout feature' },
+      ],
+      solution: {
+        commands: ['git init', 'git branch feature', 'git checkout feature'],
+        explanation: 'Initialize Git first, then create a branch and switch to it. Branches allow you to work on features independently.',
+      },
+      tags: ['git', 'branches'],
+      prerequisites: [],
+      isPublished: true,
+      createdBy: 'system',
+      createdAt: createTimestamp(),
+      updatedAt: createTimestamp(),
+    },
   }
 }

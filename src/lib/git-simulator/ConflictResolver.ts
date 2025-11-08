@@ -1,3 +1,4 @@
+// src/lib/git-simulator/ConflictResolver.ts
 export interface ConflictMarker {
   file: string
   startLine: number

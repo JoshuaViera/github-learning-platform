@@ -1,3 +1,4 @@
+// src/app/admin/page.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -5,8 +6,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Users, Trophy, TrendingUp, Activity, BarChart3 } from 'lucide-react'
 import { onAuthStateChange } from '@/lib/firebase/auth'
-import { getAllUsers, getAllProgress, getChallenges, AdminUser } from '@/lib/firebase/admin'
-import { UserProgress } from '@/types'
+import { getAllUsers, getAllProgress, getChallenges, AdminUser, UserProgressRecord } from '@/lib/firebase/admin'
 
 interface AdminStats {
   totalUsers: number
@@ -42,12 +42,8 @@ export default function AdminPage() {
         return
       }
 
-      const adminEmails = [
-        'joshuaviera@pursuit.org',
-        'admin@pursuit.org'
-      ]
+      const adminEmails = ['joshuaviera@pursuit.org', 'admin@pursuit.org']
       const userIsAdmin = adminEmails.includes(user.email || '')
-
       console.log('🔐 User is admin?', userIsAdmin, 'Email:', user.email)
 
       if (!userIsAdmin) {
@@ -76,12 +72,12 @@ export default function AdminPage() {
       console.log('✅ Data loaded:', {
         users: users.length,
         progress: progress.length,
-        challenges: challenges.length
+        challenges: challenges.length,
       })
 
-      const totalCompletions = progress.filter((p: UserProgress) => p.status === 'completed').length
+      const totalCompletions = progress.filter((p: UserProgressRecord) => p.status === 'completed').length
       const avgScore =
-        progress.reduce((sum: number, p: UserProgress) => sum + (p.score || 0), 0) /
+        progress.reduce((sum: number, p: UserProgressRecord) => sum + (p.pointsEarned || 0), 0) /
           progress.length || 0
 
       setStats({
@@ -98,14 +94,13 @@ export default function AdminPage() {
 
       const userStats = calculateUserStats(users, progress)
       setTopUsers(userStats.slice(0, 10))
-
       console.log('✅ Stats calculated successfully')
     } catch (error) {
       console.error('❌ Error loading admin data:', error)
     }
   }
 
-  const calculateUserStats = (users: AdminUser[], progress: UserProgress[]): UserStat[] => {
+  const calculateUserStats = (users: AdminUser[], progress: UserProgressRecord[]): UserStat[] => {
     const userMap = new Map<string, UserStat>()
 
     users.forEach((user) => {
@@ -122,7 +117,7 @@ export default function AdminPage() {
       const userStat = userMap.get(p.userId)
       if (userStat && p.status === 'completed') {
         userStat.challengesCompleted++
-        userStat.totalPoints += p.score || 0
+        userStat.totalPoints += p.pointsEarned || 0
       }
     })
 

@@ -1,6 +1,5 @@
 'use client'
 
-import { GitErrorHandler } from '@/lib/git-simulator/ErrorHandler'
 import { useState, useRef, useEffect } from 'react'
 import { Terminal as TerminalIcon, Copy, Check } from 'lucide-react'
 import { cn } from '@/lib/utils/cn'
@@ -31,107 +30,106 @@ export function Terminal({
       timestamp: Date.now(),
     },
   ])
-  const errorHandler = useRef(new GitErrorHandler())
   const [currentInput, setCurrentInput] = useState('')
   const [commandHistory, setCommandHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
-const [currentDirectory] = useState(initialDirectory)
+  const [currentDirectory] = useState(initialDirectory)
   const [isProcessing, setIsProcessing] = useState(false)
   const [copied, setCopied] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const terminalRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to bottom when new lines are added
   useEffect(() => {
     if (terminalRef.current) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight
     }
   }, [lines])
 
-  // Focus input when terminal is clicked
   const handleTerminalClick = () => {
     if (!readOnly) {
       inputRef.current?.focus()
     }
   }
 
-  // Handle command submission
- const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault()
-  if (!currentInput.trim() || isProcessing) return
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!currentInput.trim() || isProcessing) return
 
-  const command = currentInput.trim()
+    const command = currentInput.trim()
 
-  // Add command to history
-  setCommandHistory((prev) => [...prev, command])
-  setHistoryIndex(-1)
+    // Validate proper spacing (no multiple spaces between args)
+    if (/\s{2,}/.test(command)) {
+      setLines((prev) => [
+        ...prev,
+        {
+          type: 'command',
+          content: command,
+          timestamp: Date.now(),
+        },
+        {
+          type: 'error',
+          content: 'Error: Multiple spaces detected between arguments',
+          timestamp: Date.now(),
+        },
+        {
+          type: 'output',
+          content: '💡 Tip: Use only single spaces between words (e.g., "git add file.txt")',
+          timestamp: Date.now(),
+        },
+      ])
+      setCurrentInput('')
+      return
+    }
 
-  // Add command line to terminal
-  setLines((prev) => [
-    ...prev,
-    {
-      type: 'command',
-      content: command,
-      timestamp: Date.now(),
-    },
-  ])
+    setCommandHistory((prev) => [...prev, command])
+    setHistoryIndex(-1)
 
-  // Clear input
-  setCurrentInput('')
-  setIsProcessing(true)
+    setLines((prev) => [
+      ...prev,
+      {
+        type: 'command',
+        content: command,
+        timestamp: Date.now(),
+      },
+    ])
 
-  try {
-    // ✨ NEW: Check for errors first
-    const error = errorHandler.current.checkCommand(command, [])
-    
-    if (error) {
+    setCurrentInput('')
+    setIsProcessing(true)
+
+    try {
+      const result = onCommand
+        ? await onCommand(command)
+        : await executeBuiltInCommand(command)
+
+      if (result.output === '') {
+        setIsProcessing(false)
+        return
+      }
+
+      setLines((prev) => [
+        ...prev,
+        {
+          type: result.type,
+          content: result.output,
+          timestamp: Date.now(),
+        },
+      ])
+    } catch (error) {
       setLines((prev) => [
         ...prev,
         {
           type: 'error',
-          content: error.message,
+          content: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
           timestamp: Date.now(),
         },
-        ...(error.suggestion ? [{
-          type: 'output' as const,
-          content: `💡 Hint: ${error.suggestion}`,
-          timestamp: Date.now(),
-        }] : []),
       ])
+    } finally {
       setIsProcessing(false)
-      return
+      setTimeout(() => inputRef.current?.focus(), 0)
     }
-
-    // Execute command normally
-    const result = onCommand
-      ? await onCommand(command)
-      : await executeBuiltInCommand(command)
-
-    // Add output to terminal
-    setLines((prev) => [
-      ...prev,
-      {
-        type: result.type,
-        content: result.output,
-        timestamp: Date.now(),
-      },
-    ])
-  } catch (error) {
-    setLines((prev) => [
-      ...prev,
-      {
-        type: 'error',
-        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        timestamp: Date.now(),
-      },
-    ])
-  } finally {
-    setIsProcessing(false)
   }
-}
 
-  // Built-in commands (fallback if no onCommand provided)
   const executeBuiltInCommand = async (
     command: string
   ): Promise<{ output: string; type: 'output' | 'error' | 'success' }> => {
@@ -148,7 +146,7 @@ const [currentDirectory] = useState(initialDirectory)
   ls       - List files
   git      - Git commands (git init, git status, etc.)
   
-Type any Git command to practice!`,
+💡 Remember: Use single spaces between words, just like a real terminal!`,
           type: 'output',
         }
 
@@ -178,25 +176,31 @@ Common Git commands:
    branch     List, create, or delete branches
    checkout   Switch branches or restore files
    log        Show commit logs
+   merge      Join development histories together
+   push       Update remote refs
+   pull       Fetch and integrate with another repository
    
 Use 'git help <command>' for more information.`,
             type: 'output',
           }
         }
         return {
-          output: `git: '${parts.slice(1).join(' ')}' is not a git command. Type 'git' for available commands.`,
+          output: `git: '${parts.slice(1).join(' ')}' - Command passed to challenge executor`,
           type: 'error',
         }
 
+      case '':
+        return { output: '', type: 'output' }
+
       default:
         return {
-          output: `Command not found: ${cmd}. Type 'help' for available commands.`,
+          output: `Command not found: ${cmd}
+Type 'help' for available commands, or try a Git command like 'git init'`,
           type: 'error',
         }
     }
   }
 
-  // Handle keyboard navigation (up/down for history)
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowUp') {
       e.preventDefault()
@@ -218,26 +222,32 @@ Use 'git help <command>' for more information.`,
         setHistoryIndex(newIndex)
         setCurrentInput(commandHistory[newIndex])
       }
+    } else if (e.key === 'Tab') {
+      e.preventDefault()
     }
   }
 
-  // Copy terminal content
   const handleCopy = async () => {
-    const content = lines.map((line) => {
-      if (line.type === 'command') {
-        return `$ ${line.content}`
-      }
-      return line.content
-    }).join('\n')
+    const content = lines
+      .map((line) => {
+        if (line.type === 'command') {
+          return `$ ${line.content}`
+        }
+        return line.content
+      })
+      .join('\n')
 
-    await navigator.clipboard.writeText(content)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
   }
 
   return (
     <div className={cn('flex flex-col rounded-lg border border-gray-300 bg-gray-900', className)}>
-      {/* Terminal Header */}
       <div className="flex items-center justify-between border-b border-gray-700 bg-gray-800 px-4 py-2">
         <div className="flex items-center gap-2">
           <TerminalIcon className="h-4 w-4 text-green-400" />
@@ -246,7 +256,8 @@ Use 'git help <command>' for more information.`,
         </div>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-400 hover:bg-gray-700 hover:text-gray-200"
+          className="flex items-center gap-1 rounded px-2 py-1 text-xs text-gray-400 hover:bg-gray-700 hover:text-gray-200 transition-colors"
+          title="Copy terminal content"
         >
           {copied ? (
             <>
@@ -262,7 +273,6 @@ Use 'git help <command>' for more information.`,
         </button>
       </div>
 
-      {/* Terminal Content */}
       <div
         ref={terminalRef}
         onClick={handleTerminalClick}
@@ -289,7 +299,6 @@ Use 'git help <command>' for more information.`,
           </div>
         ))}
 
-        {/* Current Input Line */}
         {!readOnly && (
           <form onSubmit={handleSubmit} className="flex items-start gap-2">
             <span className="text-green-400">$</span>
@@ -302,6 +311,10 @@ Use 'git help <command>' for more information.`,
               disabled={isProcessing}
               className="flex-1 bg-transparent text-gray-100 outline-none disabled:opacity-50"
               placeholder={isProcessing ? 'Processing...' : 'Type a command...'}
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
               autoFocus
             />
           </form>

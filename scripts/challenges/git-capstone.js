@@ -1,3 +1,5 @@
+// scripts/challenges/git-capstone.js
+
 const gitCapstoneChallenges = [
   {
     moduleId: 'git-capstone',

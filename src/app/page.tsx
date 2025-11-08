@@ -1,3 +1,4 @@
+// src/app/page.tsx
 import Link from 'next/link'
 import { ArrowRight, Code2, GitBranch, Trophy, Zap } from 'lucide-react'
 
@@ -40,7 +41,7 @@ export default function HomePage() {
               <ArrowRight className="h-5 w-5" />
             </Link>
             <Link
-              href="/about"
+              href="/tutorial"
               className="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-gray-300 bg-white px-8 py-4 text-lg font-semibold text-gray-900 transition-all hover:border-gray-400 hover:scale-105"
             >
               Learn More

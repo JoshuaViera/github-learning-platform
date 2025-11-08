@@ -1,3 +1,5 @@
+// src/lib/git-simulator/CommandRecorder.ts 
+
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export interface CommandRecord {
   id: string

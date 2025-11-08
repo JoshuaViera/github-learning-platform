@@ -1,3 +1,4 @@
+// scripts/challenges/git-advanced.js
 const gitAdvancedChallenges = [
   {
     moduleId: 'git-advanced',

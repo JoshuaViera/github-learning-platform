@@ -1,3 +1,5 @@
+// src/types/index.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Timestamp } from 'firebase/firestore'
 
 // ============================================================================
@@ -43,6 +45,9 @@ export interface Challenge {
   hints: Hint[]
   solution: Solution
 
+  // NEW: Educational content
+  explanation?: ChallengeExplanation
+
   // Metadata
   tags: string[]
   prerequisites: string[] // Array of challenge IDs
@@ -51,6 +56,28 @@ export interface Challenge {
   createdAt: Timestamp
   updatedAt: Timestamp
 }
+
+// ============================================================================
+// CHALLENGE EXPLANATION TYPES
+// ============================================================================
+
+export interface ChallengeExplanation {
+  overview: string                    // Plain English: "What you're doing"
+  why: string                         // "Why this matters"
+  vocabulary: VocabularyTerm[]       // Key terms to understand
+  realWorldExample?: string          // Practical application
+  commonMistakes?: string[]          // What to avoid
+}
+
+export interface VocabularyTerm {
+  term: string
+  definition: string
+  example?: string
+}
+
+// ============================================================================
+// FILE AND VALIDATION TYPES
+// ============================================================================
 
 export interface FileNode {
   name: string
@@ -109,14 +136,14 @@ export interface UserProgress {
   id: string
   userId: string
   challengeId: string
-  status: 'not-started' | 'in-progress' | 'completed' | 'in_progress'  // Added both variants
+  status: 'not-started' | 'in-progress' | 'completed' | 'in_progress'
   startedAt?: Date
   completedAt?: Date
   attempts: number
   hintsUsed: number
   commandsExecuted: string[]
   timeSpentSeconds: number
-  score?: number  // ← MAKE SURE THIS EXISTS
+  score?: number
   solutionViewed?: boolean
   pointsEarned?: number
   savedTerminalState?: any

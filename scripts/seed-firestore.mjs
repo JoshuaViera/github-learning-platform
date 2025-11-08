@@ -1,3 +1,6 @@
+// scripts/seed-firestore.mjs
+
+/* eslint-disable no-console */
 import { initializeApp } from 'firebase/app'
 import { getFirestore, collection, addDoc, getDocs, deleteDoc } from 'firebase/firestore'
 import dotenv from 'dotenv'

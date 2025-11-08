@@ -1,5 +1,14 @@
+// src/lib/git-simulator/ValidationEngine.ts
 import { GitEngine } from './GitEngine'
-import { ValidationTest } from '@/types'
+
+export interface ValidationTest {
+  id: string
+  description: string
+  gitCheck?: {
+    type: 'status' | 'commit' | 'branch' | 'file' | 'merged'
+    value: string | boolean
+  }
+}
 
 export interface ValidationResult {
   testId: string
@@ -19,135 +28,202 @@ export class ValidationEngine {
   }
 
   private runTest(test: ValidationTest): ValidationResult {
-    try {
-      if (test.command) {
-        return this.validateCommand(test)
-      }
-
-      if (test.fileCheck) {
-        return this.validateFile(test)
-      }
-
-      if (test.gitCheck) {
-        return this.validateGitState(test)
-      }
-
+    if (!test.gitCheck) {
       return {
         testId: test.id,
         passed: false,
-        message: 'Invalid test configuration',
+        message: `${test.description}: No validation criteria specified`,
+      }
+    }
+
+    const { type, value } = test.gitCheck
+
+    try {
+      switch (type) {
+        case 'status':
+          return this.checkStatus(test, value)
+        case 'commit':
+          return this.checkCommit(test, value)
+        case 'branch':
+          return this.checkBranch(test, value)
+        case 'file':
+          return this.checkFile(test, value)
+        case 'merged':
+          return this.checkMerged(test, value)
+        default:
+          return {
+            testId: test.id,
+            passed: false,
+            message: `${test.description}: Unknown test type`,
+          }
       }
     } catch (error) {
       return {
         testId: test.id,
         passed: false,
-        message: `Test error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        message: `${test.description}: Error running test - ${error instanceof Error ? error.message : 'Unknown error'}`,
       }
     }
   }
 
-  private validateCommand(test: ValidationTest): ValidationResult {
-    return {
-      testId: test.id,
-      passed: true,
-      message: test.description,
-    }
-  }
-
-  private validateFile(test: ValidationTest): ValidationResult {
-    if (!test.fileCheck) {
-      return {
-        testId: test.id,
-        passed: false,
-        message: 'No file check specified',
-      }
-    }
-
+  private checkStatus(test: ValidationTest, value: string | boolean): ValidationResult {
     const state = this.gitEngine.getState()
-    const fileExists =
-      state.workingDirectory.includes(test.fileCheck.path) ||
-      state.stagingArea.includes(test.fileCheck.path)
 
-    if (test.fileCheck.exists && !fileExists) {
+    if (value === 'initialized' || value === true) {
+      const isInitialized = state?.initialized === true
       return {
         testId: test.id,
-        passed: false,
-        message: `File ${test.fileCheck.path} does not exist`,
-      }
-    }
-
-    if (!test.fileCheck.exists && fileExists) {
-      return {
-        testId: test.id,
-        passed: false,
-        message: `File ${test.fileCheck.path} should not exist`,
+        passed: isInitialized,
+        message: isInitialized
+          ? `✓ ${test.description}`
+          : `✗ ${test.description} - Repository not initialized. Run 'git init' first.`,
       }
     }
 
     return {
       testId: test.id,
-      passed: true,
-      message: test.description,
+      passed: false,
+      message: `✗ ${test.description} - Unknown status check`,
     }
   }
 
-  private validateGitState(test: ValidationTest): ValidationResult {
-    if (!test.gitCheck) {
+  private checkCommit(test: ValidationTest, value: string | boolean): ValidationResult {
+    const state = this.gitEngine.getState()
+
+    if (!state?.initialized) {
       return {
         testId: test.id,
         passed: false,
-        message: 'No git check specified',
+        message: `✗ ${test.description} - Repository not initialized`,
       }
     }
 
+    const commits = state.commits || []
+
+    if (typeof value === 'string') {
+      // Check if any commit message contains the value (case-insensitive)
+      const hasCommit = commits.some((commit) =>
+        commit.message.toLowerCase().includes(value.toLowerCase())
+      )
+
+      return {
+        testId: test.id,
+        passed: hasCommit,
+        message: hasCommit
+          ? `✓ ${test.description}`
+          : `✗ ${test.description} - No commit found with "${value}" in the message. Your commits: ${commits.map(c => `"${c.message}"`).join(', ') || 'none'}`,
+      }
+    }
+
+    // Check if there are any commits
+    const hasCommits = commits.length > 0
+    return {
+      testId: test.id,
+      passed: hasCommits,
+      message: hasCommits
+        ? `✓ ${test.description}`
+        : `✗ ${test.description} - No commits found. Use 'git commit -m "message"' to create a commit.`,
+    }
+  }
+
+  private checkBranch(test: ValidationTest, value: string | boolean): ValidationResult {
     const state = this.gitEngine.getState()
 
-    switch (test.gitCheck.type) {
-      case 'commit':
-        const hasCommit = state.commits.some((commit) =>
-          commit.message.toLowerCase().includes(test.gitCheck!.value.toLowerCase())
-        )
-        return {
-          testId: test.id,
-          passed: hasCommit,
-          message: hasCommit
-            ? test.description
-            : `No commit found with message containing "${test.gitCheck.value}"`,
-        }
+    if (!state?.initialized) {
+      return {
+        testId: test.id,
+        passed: false,
+        message: `✗ ${test.description} - Repository not initialized`,
+      }
+    }
 
-      case 'branch':
-        const hasBranch = state.branches.includes(test.gitCheck.value)
-        return {
-          testId: test.id,
-          passed: hasBranch,
-          message: hasBranch
-            ? test.description
-            : `Branch "${test.gitCheck.value}" does not exist`,
-        }
+    const branches = state.branches || []
 
-      case 'status':
-        const isInitialized = state.initialized
-        if (test.gitCheck.value === 'initialized') {
-          return {
-            testId: test.id,
-            passed: isInitialized,
-            message: isInitialized
-              ? test.description
-              : 'Git repository is not initialized',
-          }
-        }
-        return {
-          testId: test.id,
-          passed: false,
-          message: 'Unknown status check',
-        }
+    if (typeof value === 'string') {
+      // Check if branch exists (case-insensitive)
+      const hasBranch = branches.some(
+        (branch) => branch.toLowerCase() === value.toLowerCase()
+      )
 
-      default:
-        return {
-          testId: test.id,
-          passed: false,
-          message: 'Unknown git check type',
-        }
+      return {
+        testId: test.id,
+        passed: hasBranch,
+        message: hasBranch
+          ? `✓ ${test.description}`
+          : `✗ ${test.description} - Branch "${value}" not found. Available branches: ${branches.join(', ') || 'none'}`,
+      }
+    }
+
+    // Check if there are multiple branches
+    const hasMultipleBranches = branches.length > 1
+    return {
+      testId: test.id,
+      passed: hasMultipleBranches,
+      message: hasMultipleBranches
+        ? `✓ ${test.description}`
+        : `✗ ${test.description} - Only one branch exists`,
+    }
+  }
+
+  private checkFile(test: ValidationTest, value: string | boolean): ValidationResult {
+    const state = this.gitEngine.getState()
+
+    if (!state?.initialized) {
+      return {
+        testId: test.id,
+        passed: false,
+        message: `✗ ${test.description} - Repository not initialized`,
+      }
+    }
+
+    const workingDir = state.workingDirectory || []
+
+    if (typeof value === 'string') {
+      const hasFile = workingDir.includes(value)
+
+      return {
+        testId: test.id,
+        passed: hasFile,
+        message: hasFile
+          ? `✓ ${test.description}`
+          : `✗ ${test.description} - File "${value}" not found in working directory`,
+      }
+    }
+
+    const hasFiles = workingDir.length > 0
+    return {
+      testId: test.id,
+      passed: hasFiles,
+      message: hasFiles
+        ? `✓ ${test.description}`
+        : `✗ ${test.description} - No files in working directory`,
+    }
+  }
+
+  private checkMerged(test: ValidationTest, value: string | boolean): ValidationResult {
+    const state = this.gitEngine.getState()
+
+    if (!state?.initialized) {
+      return {
+        testId: test.id,
+        passed: false,
+        message: `✗ ${test.description} - Repository not initialized`,
+      }
+    }
+
+    const commits = state.commits || []
+    
+    // Check if there are merge commits (commits with multiple parents)
+    const hasMergeCommit = commits.some(
+      (commit) => commit.parents && commit.parents.length > 1
+    )
+
+    return {
+      testId: test.id,
+      passed: hasMergeCommit || value === true,
+      message: hasMergeCommit
+        ? `✓ ${test.description}`
+        : `✗ ${test.description} - No merge detected. Use 'git merge <branch>' to merge branches.`,
     }
   }
 

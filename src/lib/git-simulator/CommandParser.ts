@@ -1,3 +1,4 @@
+// src/lib/git-simulator/CommandParser.ts
 export interface ParsedCommand {
   command: string
   subcommand?: string

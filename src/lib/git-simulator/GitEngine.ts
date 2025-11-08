@@ -1,108 +1,101 @@
-import { GitState, Commit } from '@/types'
+// src/lib/git-simulator/GitEngine.ts
+export interface GitState {
+  initialized: boolean
+  currentBranch: string
+  branches: string[]
+  commits: Array<{
+    hash: string
+    message: string
+    author: string
+    timestamp: number
+    parents?: string[]
+  }>
+  workingDirectory: string[]
+  stagingArea: string[]
+  head: string
+}
 
 export class GitEngine {
-  private state: GitState
-  private workingDirectory: Map<string, string> // path -> content
-
-  constructor() {
-    this.state = {
-      initialized: false,
-      currentBranch: 'main',
-      branches: [],
-      commits: [],
-      workingDirectory: [],
-      stagingArea: [],
-    }
-    this.workingDirectory = new Map()
+  private state: GitState = {
+    initialized: false,
+    currentBranch: 'main',
+    branches: [],
+    commits: [],
+    workingDirectory: [],
+    stagingArea: [],
+    head: '',
   }
 
-  // Initialize a Git repository
   init(): string {
     if (this.state.initialized) {
-      return 'Reinitialized existing Git repository'
+      return 'Reinitialized existing Git repository in .git/'
     }
 
     this.state.initialized = true
     this.state.branches = ['main']
     this.state.currentBranch = 'main'
-
-    return 'Initialized empty Git repository'
+    
+    return 'Initialized empty Git repository in .git/'
   }
 
-  // Check Git status
   status(): string {
     if (!this.state.initialized) {
-      return 'fatal: not a git repository (or any of the parent directories)'
+      return 'fatal: not a git repository (or any of the parent directories): .git'
     }
 
-    let output = `On branch ${this.state.currentBranch}\n\n`
-
+    const lines: string[] = []
+    lines.push(`On branch ${this.state.currentBranch}`)
+    
     if (this.state.commits.length === 0) {
-      output += 'No commits yet\n\n'
+      lines.push('\nNo commits yet')
     }
 
-    // Check for changes to be committed (staging area)
     if (this.state.stagingArea.length > 0) {
-      output += 'Changes to be committed:\n'
-      output += '  (use "git restore --staged <file>..." to unstage)\n'
+      lines.push('\nChanges to be committed:')
+      lines.push('  (use "git restore --staged <file>..." to unstage)')
       this.state.stagingArea.forEach((file) => {
-        output += `\tmodified:   ${file}\n`
+        lines.push(`\tnew file:   ${file}`)
       })
-      output += '\n'
     }
 
-    // Check for changes not staged for commit (working directory)
-    if (this.state.workingDirectory.length > 0 && this.state.stagingArea.length === 0) {
-      output += 'Changes not staged for commit:\n'
-      output += '  (use "git add <file>..." to update what will be committed)\n'
-      this.state.workingDirectory.forEach((file) => {
-        output += `\tmodified:   ${file}\n`
+    const unstagedFiles = this.state.workingDirectory.filter(
+      (file) => !this.state.stagingArea.includes(file)
+    )
+
+    if (unstagedFiles.length > 0) {
+      lines.push('\nUntracked files:')
+      lines.push('  (use "git add <file>..." to include in what will be committed)')
+      unstagedFiles.forEach((file) => {
+        lines.push(`\t${file}`)
       })
-      output += '\n'
     }
 
-    if (
-      this.state.stagingArea.length === 0 &&
-      this.state.workingDirectory.length === 0 &&
-      this.state.commits.length > 0
-    ) {
-      output += 'nothing to commit, working tree clean'
+    if (this.state.stagingArea.length === 0 && unstagedFiles.length === 0) {
+      lines.push('\nnothing to commit, working tree clean')
     }
 
-    return output.trim()
+    return lines.join('\n')
   }
 
-  // Add files to staging area
-  add(files: string[]): string {
+  add(filename: string): string {
     if (!this.state.initialized) {
-      return 'fatal: not a git repository'
+      return 'fatal: not a git repository (or any of the parent directories): .git'
     }
 
-    if (files.length === 0 || files[0] === '.') {
-      // Add all files
-      this.state.stagingArea = [...this.state.workingDirectory]
-      this.state.workingDirectory = []
-      return ''
+    if (!this.state.workingDirectory.includes(filename)) {
+      return `fatal: pathspec '${filename}' did not match any files`
     }
 
-    // Add specific files
-    files.forEach((file) => {
-      const index = this.state.workingDirectory.indexOf(file)
-      if (index > -1) {
-        this.state.workingDirectory.splice(index, 1)
-        if (!this.state.stagingArea.includes(file)) {
-          this.state.stagingArea.push(file)
-        }
-      }
-    })
+    if (!this.state.stagingArea.includes(filename)) {
+      this.state.stagingArea.push(filename)
+    }
 
     return ''
   }
 
-  // Create a commit
-  commit(message: string, author = 'Student'): string {
+  commit(message: string): string {
     if (!this.state.initialized) {
-      return 'fatal: not a git repository'
+      return 'fatal: not a git repository (or any of the parent directories): .git'
     }
 
     if (this.state.stagingArea.length === 0) {
@@ -110,108 +103,131 @@ export class GitEngine {
     }
 
     const hash = this.generateHash()
-    const parent = this.state.commits.length > 0 ? this.state.commits[this.state.commits.length - 1].hash : null
-
-    const commit: Commit = {
+    const commit = {
       hash,
-      parent,
-      message,
-      author,
+      message: message || 'No commit message',
+      author: 'Student',
       timestamp: Date.now(),
-      files: this.state.stagingArea.map((name) => ({
-        name,
-        type: 'file' as const,
-        content: this.workingDirectory.get(name) || '',
-      })),
+      parents: this.state.head ? [this.state.head] : [],
     }
 
     this.state.commits.push(commit)
+    this.state.head = hash
     this.state.stagingArea = []
 
-    const filesChanged = commit.files.length
-    return `[${this.state.currentBranch} ${hash.substring(0, 7)}] ${message}\n ${filesChanged} file${filesChanged !== 1 ? 's' : ''} changed`
+    const filesCommitted = this.state.stagingArea.length
+    return `[${this.state.currentBranch} ${hash.substring(0, 7)}] ${message}\n ${filesCommitted} file${filesCommitted !== 1 ? 's' : ''} changed`
   }
 
-  // Show commit log
+  branch(branchName?: string): string {
+    if (!this.state.initialized) {
+      return 'fatal: not a git repository (or any of the parent directories): .git'
+    }
+
+    if (!branchName) {
+      // List branches
+      return this.state.branches
+        .map((b) => (b === this.state.currentBranch ? `* ${b}` : `  ${b}`))
+        .join('\n')
+    }
+
+    if (this.state.branches.includes(branchName)) {
+      return `fatal: A branch named '${branchName}' already exists.`
+    }
+
+    this.state.branches.push(branchName)
+    return ``
+  }
+
+  checkout(branchName: string): string {
+    if (!this.state.initialized) {
+      return 'fatal: not a git repository (or any of the parent directories): .git'
+    }
+
+    // Check if it's a branch creation flag
+    if (branchName === '-b') {
+      return `error: switch 'b' requires a value`
+    }
+
+    if (!this.state.branches.includes(branchName)) {
+      return `error: pathspec '${branchName}' did not match any file(s) known to git`
+    }
+
+    this.state.currentBranch = branchName
+    return `Switched to branch '${branchName}'`
+  }
+
+  checkoutNewBranch(branchName: string): string {
+    if (!this.state.initialized) {
+      return 'fatal: not a git repository (or any of the parent directories): .git'
+    }
+
+    if (this.state.branches.includes(branchName)) {
+      return `fatal: A branch named '${branchName}' already exists.`
+    }
+
+    this.state.branches.push(branchName)
+    this.state.currentBranch = branchName
+    return `Switched to a new branch '${branchName}'`
+  }
+
   log(): string {
     if (!this.state.initialized) {
-      return 'fatal: not a git repository'
+      return 'fatal: not a git repository (or any of the parent directories): .git'
     }
 
     if (this.state.commits.length === 0) {
       return 'fatal: your current branch does not have any commits yet'
     }
 
-    let output = ''
-    const commits = [...this.state.commits].reverse()
-
-    commits.forEach((commit) => {
-      output += `commit ${commit.hash}\n`
-      output += `Author: ${commit.author}\n`
-      output += `Date:   ${new Date(commit.timestamp).toLocaleString()}\n\n`
-      output += `    ${commit.message}\n\n`
-    })
-
-    return output.trim()
+    return this.state.commits
+      .reverse()
+      .map((commit) => {
+        return `commit ${commit.hash}\nAuthor: ${commit.author}\nDate: ${new Date(commit.timestamp).toLocaleString()}\n\n    ${commit.message}\n`
+      })
+      .join('\n')
   }
 
-  // Create a new branch
-  branch(name?: string): string {
+  merge(branchName: string): string {
     if (!this.state.initialized) {
-      return 'fatal: not a git repository'
+      return 'fatal: not a git repository (or any of the parent directories): .git'
     }
 
-    // List branches if no name provided
-    if (!name) {
-      let output = ''
-      this.state.branches.forEach((branch) => {
-        const prefix = branch === this.state.currentBranch ? '* ' : '  '
-        output += `${prefix}${branch}\n`
-      })
-      return output.trim()
+    if (!this.state.branches.includes(branchName)) {
+      return `fatal: '${branchName}' does not refer to a commit`
     }
 
-    // Create new branch
-    if (this.state.branches.includes(name)) {
-      return `fatal: A branch named '${name}' already exists.`
+    if (branchName === this.state.currentBranch) {
+      return `fatal: Cannot merge branch into itself`
     }
 
-    this.state.branches.push(name)
+    // Simulate successful merge
+    const hash = this.generateHash()
+    const commit = {
+      hash,
+      message: `Merge branch '${branchName}'`,
+      author: 'Student',
+      timestamp: Date.now(),
+      parents: [this.state.head, hash],
+    }
+
+    this.state.commits.push(commit)
+    this.state.head = hash
+
+    return `Merge made by the 'recursive' strategy.`
+  }
+
+  createFile(filename: string, _content?: string): string {
+    if (!this.state.workingDirectory.includes(filename)) {
+      this.state.workingDirectory.push(filename)
+    }
     return ''
   }
 
-  // Switch branches
-  checkout(branch: string): string {
-    if (!this.state.initialized) {
-      return 'fatal: not a git repository'
-    }
-
-    if (!this.state.branches.includes(branch)) {
-      return `error: pathspec '${branch}' did not match any file(s) known to git`
-    }
-
-    if (this.state.currentBranch === branch) {
-      return `Already on '${branch}'`
-    }
-
-    this.state.currentBranch = branch
-    return `Switched to branch '${branch}'`
-  }
-
-  // Add a file to working directory (simulate file creation/modification)
-  addFile(name: string, content = ''): void {
-    this.workingDirectory.set(name, content)
-    if (!this.state.workingDirectory.includes(name)) {
-      this.state.workingDirectory.push(name)
-    }
-  }
-
-  // Get current state
   getState(): GitState {
     return { ...this.state }
   }
 
-  // Reset state (for new challenges)
   reset(): void {
     this.state = {
       initialized: false,
@@ -220,14 +236,11 @@ export class GitEngine {
       commits: [],
       workingDirectory: [],
       stagingArea: [],
+      head: '',
     }
-    this.workingDirectory.clear()
   }
 
-  // Generate a fake commit hash
   private generateHash(): string {
-    return Array.from({ length: 40 }, () =>
-      Math.floor(Math.random() * 16).toString(16)
-    ).join('')
+    return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
   }
 }

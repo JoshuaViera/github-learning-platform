@@ -1,3 +1,4 @@
+// src/lib/firebase/auth.ts
 import { browserLocalPersistence, setPersistence } from 'firebase/auth'
 import {
   signInWithPopup,
@@ -23,8 +24,6 @@ export async function signInWithGoogle(): Promise<User> {
     appUrl: process.env.NEXT_PUBLIC_APP_URL,
     allowedDomain: ALLOWED_DOMAIN,
   })
-
-  
 
   const provider = new GoogleAuthProvider()
   provider.setCustomParameters({
@@ -83,9 +82,10 @@ export async function signOut(): Promise<void> {
 
 /**
  * Create or update user profile in Firestore
+ * FIXED: Now uses 'profiles' collection (matches your database)
  */
 async function createOrUpdateUserProfile(user: User): Promise<void> {
-  const userRef = doc(db, 'users', user.uid)  // Changed from 'profiles' to 'users'
+  const userRef = doc(db, 'profiles', user.uid)  // ✅ CHANGED FROM 'users' TO 'profiles'
 
   try {
     const userDoc = await getDoc(userRef)

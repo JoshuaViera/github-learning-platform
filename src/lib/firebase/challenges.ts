@@ -1,186 +1,311 @@
-import { collection, doc, getDoc, getDocs, query, where, addDoc, updateDoc, Timestamp } from 'firebase/firestore'
+// src/lib/firebase/challenges.ts
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  addDoc,
+  updateDoc,
+  query,
+  where,
+  limit,
+  Timestamp,
+} from 'firebase/firestore'
 import { db } from './config'
-import { Challenge, Module, UserProgress } from '@/types'
+import { Challenge } from '@/types'
 
-// ============================================================================
-// MODULES
-// ============================================================================
-
-export async function getModules(): Promise<Module[]> {
-  const modulesRef = collection(db, 'modules')
-  const snapshot = await getDocs(modulesRef)
-  
-  // Filter and sort in JavaScript to avoid index requirement
-  const modules = snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Module[]
-  
-  return modules
-    .filter(m => m.isPublished !== false)
-    .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0))
-}
-
-export async function getModule(moduleId: string): Promise<Module | null> {
-  const docRef = doc(db, 'modules', moduleId)
-  const docSnap = await getDoc(docRef)
-  
-  if (!docSnap.exists()) return null
-  
-  return {
-    id: docSnap.id,
-    ...docSnap.data(),
-  } as Module
-}
-
-// ============================================================================
-// CHALLENGES
-// ============================================================================
-
-export async function getChallenges(moduleId?: string): Promise<Challenge[]> {
-  const challengesRef = collection(db, 'challenges')
-  
-  // Fetch all challenges (no compound query to avoid index requirement)
-  const snapshot = await getDocs(challengesRef)
-  
-  // Filter and sort in JavaScript
-  let challenges = snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as Challenge[]
-  
-  // Filter by moduleId if provided
-  if (moduleId) {
-    challenges = challenges.filter(c => c.moduleId === moduleId)
-  }
-  
-  // Filter published only and sort by orderIndex
-  challenges = challenges
-    .filter(c => c.isPublished !== false) // Show if isPublished is true or undefined
-    .sort((a, b) => (a.orderIndex || 0) - (b.orderIndex || 0))
-  
-  return challenges
+interface UserProgressRecord {
+  userId: string
+  challengeId: string
+  status: 'not_started' | 'in_progress' | 'completed'
+  attempts: number
+  hintsUsed: number
+  pointsEarned: number
+  timeSpentSeconds: number
+  solutionViewed: boolean
+  savedTerminalState: any | null
+  startedAt: Timestamp
+  completedAt?: Timestamp
+  createdAt: Timestamp
+  updatedAt: Timestamp
 }
 
 export async function getChallenge(challengeId: string): Promise<Challenge | null> {
-  const docRef = doc(db, 'challenges', challengeId)
-  const docSnap = await getDoc(docRef)
-  
-  if (!docSnap.exists()) return null
-  
-  return {
-    id: docSnap.id,
-    ...docSnap.data(),
-  } as Challenge
+  try {
+    if (!challengeId || typeof challengeId !== 'string') {
+      console.warn('⚠️ Invalid challengeId:', challengeId)
+      return null
+    }
+
+    console.log('🔍 Fetching challenge:', challengeId)
+    
+    const challengeRef = doc(db, 'challenges', challengeId)
+    const challengeSnap = await getDoc(challengeRef)
+
+    if (!challengeSnap.exists()) {
+      console.log('❌ Challenge not found in Firestore:', challengeId)
+      return null
+    }
+
+    const data = challengeSnap.data() as Challenge
+    console.log('✅ Challenge loaded from Firestore:', data.title)
+    return data
+  } catch (error) {
+    console.error('❌ Error fetching challenge:', error)
+    return null
+  }
 }
 
-// ============================================================================
-// USER PROGRESS
-// ============================================================================
-
-export async function getUserProgress(
-  userId: string,
-  challengeId?: string
-): Promise<UserProgress[]> {
-  const progressRef = collection(db, 'user_progress')
-  
-  let q = query(progressRef, where('userId', '==', userId))
-  
-  if (challengeId) {
-    q = query(q, where('challengeId', '==', challengeId))
+export async function getAllChallenges(): Promise<Challenge[]> {
+  try {
+    console.log('🔍 getAllChallenges: Starting fetch...')
+    console.log('🔍 Database instance:', db ? 'Connected' : 'NOT CONNECTED')
+    
+    const challengesRef = collection(db, 'challenges')
+    console.log('🔍 Collection reference created:', challengesRef)
+    
+    // SIMPLIFIED QUERY - No composite index needed!
+    const q = query(challengesRef, where('isPublished', '==', true))
+    console.log('🔍 Query created (simplified - no orderBy)')
+    
+    const querySnapshot = await getDocs(q)
+    console.log('🔍 Query executed. Found documents:', querySnapshot.size)
+    
+    const challenges: Challenge[] = []
+    
+    querySnapshot.forEach((doc) => {
+      console.log('🔍 Processing document:', doc.id, doc.data())
+      challenges.push({ id: doc.id, ...doc.data() } as Challenge)
+    })
+    
+    // SORT IN JAVASCRIPT INSTEAD OF FIRESTORE
+    challenges.sort((a, b) => a.orderIndex - b.orderIndex)
+    
+    console.log('✅ Total challenges loaded:', challenges.length)
+    console.log('✅ Challenges:', challenges.map(c => ({ id: c.id, title: c.title })))
+    
+    return challenges
+  } catch (error) {
+    console.error('❌ Error fetching challenges:', error)
+    console.error('❌ Error details:', {
+      message: error instanceof Error ? error.message : 'Unknown',
+      code: (error as any)?.code,
+      stack: error instanceof Error ? error.stack : 'No stack'
+    })
+    return []
   }
-  
-  const snapshot = await getDocs(q)
-  
-  return snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  })) as UserProgress[]
+}
+
+export async function getChallengesByModule(moduleId: string): Promise<Challenge[]> {
+  try {
+    const challengesRef = collection(db, 'challenges')
+    const q = query(
+      challengesRef,
+      where('moduleId', '==', moduleId),
+      where('isPublished', '==', true)
+    )
+    
+    const querySnapshot = await getDocs(q)
+    const challenges: Challenge[] = []
+    
+    querySnapshot.forEach((doc) => {
+      challenges.push({ id: doc.id, ...doc.data() } as Challenge)
+    })
+    
+    // Sort in JavaScript
+    challenges.sort((a, b) => a.orderIndex - b.orderIndex)
+    
+    return challenges
+  } catch (error) {
+    console.error('Error fetching challenges by module:', error)
+    return []
+  }
+}
+
+export async function getUserProgress(userId: string): Promise<UserProgressRecord[]> {
+  try {
+    if (!userId || typeof userId !== 'string') {
+      console.warn('⚠️ Invalid userId:', userId)
+      return []
+    }
+
+    const progressRef = collection(db, 'user_progress')
+    const q = query(progressRef, where('userId', '==', userId))
+    const snapshot = await getDocs(q)
+
+    const records: UserProgressRecord[] = []
+    snapshot.forEach((doc) => {
+      records.push(doc.data() as UserProgressRecord)
+    })
+
+    return records
+  } catch (error) {
+    console.error('❌ Error fetching user progress:', error)
+    return []
+  }
+}
+
+export async function getChallengeProgress(
+  userId: string,
+  challengeId: string
+): Promise<UserProgressRecord | null> {
+  try {
+    const progressRef = collection(db, 'user_progress')
+    const q = query(
+      progressRef,
+      where('userId', '==', userId),
+      where('challengeId', '==', challengeId),
+      limit(1)
+    )
+    
+    const snapshot = await getDocs(q)
+    
+    if (snapshot.empty) {
+      return null
+    }
+
+    return snapshot.docs[0].data() as UserProgressRecord
+  } catch (error) {
+    console.error('❌ Error fetching challenge progress:', error)
+    return null
+  }
 }
 
 export async function updateUserProgress(
   userId: string,
   challengeId: string,
-  data: Partial<UserProgress>
+  updates: Partial<{
+    hintsUsed: number
+    attempts: number
+    status: 'not_started' | 'in_progress' | 'completed'
+  }>
 ): Promise<void> {
-  const progressRef = collection(db, 'user_progress')
-  const q = query(
-    progressRef,
-    where('userId', '==', userId),
-    where('challengeId', '==', challengeId)
-  )
-  
-  const snapshot = await getDocs(q)
-  
-  if (snapshot.empty) {
-    await addDoc(progressRef, {
-      userId,
-      challengeId,
-      status: 'in_progress',
-      attempts: 0,
-      hintsUsed: 0,
-      solutionViewed: false,
-      startedAt: Timestamp.now(),
-      completedAt: null,
-      timeSpentSeconds: 0,
-      pointsEarned: 0,
-      savedTerminalState: null,
-      createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now(),
-      ...data,
-    })
-  } else {
-    const progressDoc = snapshot.docs[0]
-    await updateDoc(doc(db, 'user_progress', progressDoc.id), {
-      ...data,
-      updatedAt: Timestamp.now(),
-    })
+  try {
+    if (!userId || !challengeId) {
+      console.warn('⚠️ Invalid userId or challengeId')
+      return
+    }
+
+    const progressRef = collection(db, 'user_progress')
+    const q = query(
+      progressRef,
+      where('userId', '==', userId),
+      where('challengeId', '==', challengeId),
+      limit(1)
+    )
+    
+    const snapshot = await getDocs(q)
+
+    if (snapshot.empty) {
+      await addDoc(progressRef, {
+        userId,
+        challengeId,
+        status: updates.status || 'in_progress',
+        attempts: updates.attempts || 0,
+        hintsUsed: updates.hintsUsed || 0,
+        pointsEarned: 0,
+        timeSpentSeconds: 0,
+        solutionViewed: false,
+        savedTerminalState: null,
+        startedAt: Timestamp.now(),
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      })
+    } else {
+      const docRef = snapshot.docs[0].ref
+      await updateDoc(docRef, {
+        ...updates,
+        updatedAt: Timestamp.now(),
+      })
+    }
+
+    console.log('✅ User progress updated')
+  } catch (error) {
+    console.error('❌ Error updating user progress:', error)
   }
 }
 
 export async function markChallengeComplete(
   userId: string,
   challengeId: string,
-  pointsEarned: number
+  points: number
 ): Promise<void> {
-  await updateUserProgress(userId, challengeId, {
-    status: 'completed',
-    completedAt: Timestamp.now(),
-    pointsEarned,
-  })
+  try {
+    if (!userId || !challengeId) {
+      console.warn('⚠️ Invalid userId or challengeId')
+      return
+    }
+
+    const progressRef = collection(db, 'user_progress')
+    const q = query(
+      progressRef,
+      where('userId', '==', userId),
+      where('challengeId', '==', challengeId),
+      limit(1)
+    )
+    
+    const snapshot = await getDocs(q)
+
+    if (snapshot.empty) {
+      await addDoc(progressRef, {
+        userId,
+        challengeId,
+        status: 'completed',
+        attempts: 1,
+        hintsUsed: 0,
+        pointsEarned: points,
+        timeSpentSeconds: 0,
+        solutionViewed: false,
+        savedTerminalState: null,
+        startedAt: Timestamp.now(),
+        completedAt: Timestamp.now(),
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      })
+      console.log('✅ Challenge marked complete (new record)')
+    } else {
+      const docRef = snapshot.docs[0].ref
+      const currentData = snapshot.docs[0].data()
+      
+      if (currentData.status === 'completed') {
+        console.log('ℹ️ Challenge already completed')
+        return
+      }
+
+      await updateDoc(docRef, {
+        status: 'completed',
+        completedAt: Timestamp.now(),
+        pointsEarned: points,
+        updatedAt: Timestamp.now(),
+      })
+      console.log('✅ Challenge marked complete:', challengeId)
+    }
+  } catch (error) {
+    console.error('❌ Error marking challenge complete:', error)
+  }
 }
 
-export async function recordChallengeAttempt(
-  userId: string,
-  challengeId: string,
-  submittedCommands: string[],
-  testResults: Record<string, unknown>[],
-  isCorrect: boolean
-): Promise<void> {
-  const attemptsRef = collection(db, 'challenge_attempts')
-  
-  await addDoc(attemptsRef, {
-    userId,
-    challengeId,
-    submittedCommands,
-    testResults,
-    isCorrect,
-    attemptedAt: Timestamp.now(),
-  })
-  
-  const progressRef = collection(db, 'user_progress')
-  const q = query(
-    progressRef,
-    where('userId', '==', userId),
-    where('challengeId', '==', challengeId)
-  )
-  
-  const snapshot = await getDocs(q)
-  if (!snapshot.empty) {
-    const progressDoc = snapshot.docs[0]
-    const currentAttempts = progressDoc.data().attempts || 0
-    await updateDoc(doc(db, 'user_progress', progressDoc.id), {
-      attempts: currentAttempts + 1,
+export async function getLeaderboard(limitCount: number = 10) {
+  try {
+    console.warn('⚠️ Leaderboard requires aggregation - implement separately')
+    return []
+  } catch (error) {
+    console.error('Error fetching leaderboard:', error)
+    return []
+  }
+}
+
+export async function saveChallenge(challenge: Challenge): Promise<void> {
+  try {
+    const challengeRef = doc(db, 'challenges', challenge.id)
+    await setDoc(challengeRef, {
+      ...challenge,
+      updatedAt: Timestamp.now(),
     })
+    console.log('✅ Challenge saved:', challenge.id)
+  } catch (error) {
+    console.error('❌ Error saving challenge:', error)
+    throw error
   }
 }

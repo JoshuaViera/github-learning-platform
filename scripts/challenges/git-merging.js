@@ -1,3 +1,4 @@
+// scripts/challenges/git-merging.js
 const gitMergingChallenges = [
   {
     moduleId: 'git-merging',

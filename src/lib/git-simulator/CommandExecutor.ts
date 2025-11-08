@@ -1,241 +1,52 @@
+// src/lib/git-simulator/CommandExecutor.ts
 import { GitEngine } from './GitEngine'
-import { CommandParser } from './CommandParser'
 
 export interface CommandResult {
   output: string
   type: 'output' | 'error' | 'success'
-  success?: boolean 
+  success?: boolean
 }
 
 export class CommandExecutor {
   private gitEngine: GitEngine
 
-  constructor(gitEngine?: GitEngine) {
-    this.gitEngine = gitEngine || new GitEngine()
+  constructor() {
+    this.gitEngine = new GitEngine()
   }
 
-  async execute(input: string): Promise<CommandResult> {
-    const parsed = CommandParser.parse(input)
+  async execute(command: string): Promise<CommandResult> {
+    const parts = command.trim().split(' ')
+    const cmd = parts[0].toLowerCase()
 
-    if (parsed.command !== 'git') {
-      return this.executeSystemCommand(parsed.command, parsed.args)
-    }
-
-    if (!parsed.subcommand) {
-      return {
-        output: `usage: git <command> [<args>]
-
-These are common Git commands used in various situations:
-
-start a working area
-   init       Create an empty Git repository
-
-work on the current change
-   add        Add file contents to the index
-   status     Show the working tree status
-
-grow, mark and tweak your common history
-   branch     List, create, or delete branches
-   checkout   Switch branches
-   commit     Record changes to the repository
-   log        Show commit logs
-
-'git help -a' lists available subcommands`,
-        type: 'output',
-      }
-    }
-
-    return this.executeGitCommand(parsed.subcommand, parsed.args, parsed.flags)
-  }
-
-  private async executeSystemCommand(
-    command: string,
-    args: string[]
-  ): Promise<CommandResult> {
-    switch (command) {
-      case 'clear':
-        return { output: 'CLEAR_TERMINAL', type: 'output' }
-
-      case 'help':
-        return {
-          output: `Git Learning Terminal - Available Commands:
-
-System Commands:
-  clear      Clear the terminal screen
-  help       Show this help message
-  pwd        Print working directory
-  ls         List directory contents
-
-Git Commands:
-  git init           Initialize a repository
-  git status         Check repository status
-  git add <file>     Stage files for commit
-  git add .          Stage all files
-  git commit -m      Commit staged changes
-  git log            View commit history
-  git branch         List/create branches
-  git checkout       Switch branches
-
-Examples:
-  git init
-  git add README.md
-  git commit -m "Initial commit"
-  git branch feature
-  git checkout feature
-
-Type 'git' for more Git command information.`,
-          type: 'output',
-        }
-
-      case 'pwd':
-        return {
-          output: '/home/student/project',
-          type: 'output',
-        }
-
-      case 'ls':
-        return {
-          output: 'README.md  index.html  styles.css  script.js',
-          type: 'output',
-        }
-
-      case 'cat':
-        if (args.length === 0) {
-          return {
-            output: 'cat: missing file operand',
-            type: 'error',
-          }
-        }
-        return {
-          output: `# ${args[0]}\n\nThis is a sample file for learning Git.`,
-          type: 'output',
-        }
-
-      case 'touch':
-        if (args.length === 0) {
-          return {
-            output: 'touch: missing file operand',
-            type: 'error',
-          }
-        }
-        args.forEach((filename) => {
-          this.gitEngine.addFile(filename, '')
-        })
-        return {
-          output: '',
-          type: 'success',
-        }
-
-      case 'echo':
-        return {
-          output: args.join(' '),
-          type: 'output',
-        }
-
-      default:
-        return {
-          output: `Command not found: ${command}\nType 'help' for available commands.`,
-          type: 'error',
-        }
-    }
-  }
-
-  private async executeGitCommand(
-    subcommand: string,
-    args: string[],
-    flags: Map<string, string | boolean>
-  ): Promise<CommandResult> {
     try {
-      let output = ''
-
-      switch (subcommand) {
-        case 'init':
-          output = this.gitEngine.init()
-          return { output, type: 'success' }
-
-        case 'status':
-          output = this.gitEngine.status()
-          return { output, type: 'output' }
-
-        case 'add':
-          if (args.length === 0) {
-            return {
-              output: `Nothing specified, nothing added.
-Maybe you wanted to say 'git add .'?`,
-              type: 'error',
-            }
-          }
-          output = this.gitEngine.add(args)
-          return {
-            output: output || `Files staged successfully`,
-            type: output ? 'error' : 'success',
-          }
-
-        case 'commit':
-          const message = (flags.get('m') || flags.get('message')) as string
-          if (!message) {
-            return {
-              output: `error: switch 'm' requires a value`,
-              type: 'error',
-            }
-          }
-          output = this.gitEngine.commit(message)
-          return {
-            output,
-            type: output.includes('fatal') || output.includes('nothing to commit') ? 'error' : 'success',
-          }
-
-        case 'log':
-          output = this.gitEngine.log()
-          return {
-            output,
-            type: output.includes('fatal') ? 'error' : 'output',
-          }
-
-        case 'branch':
-          output = this.gitEngine.branch(args[0])
-          return {
-            output: output || `Branch '${args[0]}' created`,
-            type: output.includes('fatal') ? 'error' : args[0] ? 'success' : 'output',
-          }
-
-        case 'checkout':
-          if (args.length === 0) {
-            return {
-              output: `error: switch 'checkout' requires a value`,
-              type: 'error',
-            }
-          }
-          output = this.gitEngine.checkout(args[0])
-          return {
-            output,
-            type: output.includes('error') ? 'error' : 'success',
-          }
-
+      switch (cmd) {
+        case 'git':
+          return this.executeGitCommand(parts.slice(1))
+        
+        case 'touch':
+          return this.executeTouch(parts.slice(1))
+        
+        case 'echo':
+          return this.executeEcho(parts.slice(1))
+        
+        case 'cat':
+          return this.executeCat(parts.slice(1))
+        
+        case 'ls':
+          return this.executeLs()
+        
+        case 'pwd':
+          return this.executePwd()
+        
+        case 'clear':
+          return { output: 'CLEAR_TERMINAL', type: 'output' }
+        
         case 'help':
-          return {
-            output: `usage: git [--version] [--help] <command> [<args>]
-
-These are common Git commands:
-
-start a working area
-   init      Create an empty Git repository
-
-work on the current change
-   add       Add file contents to the index
-   status    Show the working tree status
-
-grow, mark and tweak your common history
-   branch    List, create, or delete branches
-   checkout  Switch branches
-   commit    Record changes to the repository
-   log       Show commit logs`,
-            type: 'output',
-          }
-
+          return this.executeHelp()
+        
         default:
           return {
-            output: `git: '${subcommand}' is not a git command. See 'git --help'.`,
+            output: `Command not found: ${cmd}\nType 'help' for available commands.`,
             type: 'error',
           }
       }
@@ -244,6 +55,163 @@ grow, mark and tweak your common history
         output: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         type: 'error',
       }
+    }
+  }
+
+  private executeGitCommand(args: string[]): CommandResult {
+    if (args.length === 0) {
+      return {
+        output: `usage: git <command> [<args>]
+
+Common Git commands:
+   init       Create an empty Git repository
+   status     Show the working tree status
+   add        Add file contents to the index
+   commit     Record changes to the repository
+   branch     List, create, or delete branches
+   checkout   Switch branches
+   log        Show commit logs
+   merge      Join development histories together`,
+        type: 'output',
+      }
+    }
+
+    const subcommand = args[0].toLowerCase()
+    const subargs = args.slice(1)
+
+    try {
+      switch (subcommand) {
+        case 'init':
+          return { output: this.gitEngine.init(), type: 'success' }
+        
+        case 'status':
+          return { output: this.gitEngine.status(), type: 'output' }
+        
+        case 'add':
+          if (subargs.length === 0) {
+            return { output: 'Nothing specified, nothing added.', type: 'error' }
+          }
+          return { output: this.gitEngine.add(subargs[0]), type: 'success' }
+        
+        case 'commit':
+          const messageIndex = subargs.indexOf('-m')
+          if (messageIndex === -1 || messageIndex === subargs.length - 1) {
+            return { output: 'error: switch `m\' requires a value', type: 'error' }
+          }
+          const message = subargs.slice(messageIndex + 1).join(' ').replace(/["']/g, '')
+          return { output: this.gitEngine.commit(message), type: 'success' }
+        
+        case 'branch':
+          return { output: this.gitEngine.branch(subargs[0]), type: 'output' }
+        
+        case 'checkout':
+          if (subargs[0] === '-b' && subargs.length > 1) {
+            return { output: this.gitEngine.checkoutNewBranch(subargs[1]), type: 'success' }
+          }
+          return { output: this.gitEngine.checkout(subargs[0]), type: 'success' }
+        
+        case 'log':
+          return { output: this.gitEngine.log(), type: 'output' }
+        
+        case 'merge':
+          if (subargs.length === 0) {
+            return { output: 'error: branch name required', type: 'error' }
+          }
+          return { output: this.gitEngine.merge(subargs[0]), type: 'success' }
+        
+        default:
+          return {
+            output: `git: '${subcommand}' is not a git command. See 'git help'.`,
+            type: 'error',
+          }
+      }
+    } catch (error) {
+      return {
+        output: error instanceof Error ? error.message : 'Unknown error',
+        type: 'error',
+      }
+    }
+  }
+
+  private executeTouch(args: string[]): CommandResult {
+    if (args.length === 0) {
+      return { output: 'touch: missing file operand', type: 'error' }
+    }
+
+    const filename = args[0]
+    const result = this.gitEngine.createFile(filename)
+    
+    return {
+      output: result || '',
+      type: result.includes('error') || result.includes('fatal') ? 'error' : 'success',
+    }
+  }
+
+  private executeEcho(args: string[]): CommandResult {
+    if (args.length === 0) {
+      return { output: '', type: 'output' }
+    }
+
+    const content = args.join(' ').replace(/["']/g, '')
+    
+    // Check if redirecting to file
+    const redirectIndex = args.indexOf('>')
+    if (redirectIndex !== -1 && redirectIndex < args.length - 1) {
+      const filename = args[redirectIndex + 1]
+      const textContent = args.slice(0, redirectIndex).join(' ').replace(/["']/g, '')
+      this.gitEngine.createFile(filename, textContent)
+      return { output: '', type: 'success' }
+    }
+
+    return { output: content, type: 'output' }
+  }
+
+  private executeCat(args: string[]): CommandResult {
+    if (args.length === 0) {
+      return { output: 'cat: missing file operand', type: 'error' }
+    }
+
+    const filename = args[0]
+    const state = this.gitEngine.getState()
+    
+    if (!state.workingDirectory.includes(filename)) {
+      return { output: `cat: ${filename}: No such file or directory`, type: 'error' }
+    }
+
+    return { output: `[Contents of ${filename}]`, type: 'output' }
+  }
+
+  private executeLs(): CommandResult {
+    const state = this.gitEngine.getState()
+    const files = state.workingDirectory.join('  ')
+    return { output: files || '', type: 'output' }
+  }
+
+  private executePwd(): CommandResult {
+    return { output: '~/project', type: 'output' }
+  }
+
+  private executeHelp(): CommandResult {
+    return {
+      output: `Available commands:
+  help           Show this help message
+  clear          Clear the terminal
+  pwd            Print working directory
+  ls             List files
+  touch <file>   Create a file
+  cat <file>     Display file contents
+  echo <text>    Print text
+  
+Git commands:
+  git init       Initialize a repository
+  git status     Show repository status
+  git add        Stage files
+  git commit     Commit changes
+  git branch     Manage branches
+  git checkout   Switch branches
+  git log        View commit history
+  git merge      Merge branches`,
+      type: 'output',
     }
   }
 

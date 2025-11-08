@@ -1,3 +1,5 @@
+// scripts/challenges/git-basics.js
+
 const gitBasicsChallenges = [
   {
     moduleId: 'git-basics',

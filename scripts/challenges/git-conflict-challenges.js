@@ -1,3 +1,4 @@
+// scripts/challenges/git-conflict-challenges.js
 const gitConflictChallenges = [
   {
     moduleId: 'git-advanced',

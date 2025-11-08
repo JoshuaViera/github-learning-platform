@@ -1,3 +1,5 @@
+
+// scripts/challenges/git-remotes.js
 const gitRemotesChallenges = [
   {
     moduleId: 'git-remotes',

@@ -1,3 +1,4 @@
+// src/lib/git-simulator/GitVisualizer.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 export interface CommitNode {
   id: string

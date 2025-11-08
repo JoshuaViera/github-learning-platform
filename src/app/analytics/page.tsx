@@ -1,3 +1,4 @@
+// src/app/analytics/page.tsx
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -6,21 +7,28 @@ import Link from 'next/link'
 import {
   ArrowLeft,
   TrendingUp,
-  Users,
   Target,
-  Clock,
   Award,
   BarChart3,
-  PieChart,
 } from 'lucide-react'
 import { onAuthStateChange } from '@/lib/firebase/auth'
-import { getAllProgress, getChallenges } from '@/lib/firebase/admin'
+import { getAllProgress, getChallenges, UserProgressRecord } from '@/lib/firebase/admin'
+
+interface ChallengeStats {
+  id: string
+  title: string
+  difficulty: string
+  attempts: number
+  completions: number
+  completionRate: number
+  avgAttempts: number
+}
 
 export default function AnalyticsPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [challengeStats, setChallengeStats] = useState<any[]>([])
+  const [challengeStats, setChallengeStats] = useState<ChallengeStats[]>([])
 
   useEffect(() => {
     const unsubscribe = onAuthStateChange(async (user) => {
@@ -50,10 +58,11 @@ export default function AnalyticsPage() {
       const progress = await getAllProgress()
 
       const stats = challenges.map((challenge) => {
-        const challengeProgress = progress.filter((p) => p.challengeId === challenge.id)
-        const completed = challengeProgress.filter((p) => p.status === 'completed').length
+        const challengeProgress = progress.filter((p: UserProgressRecord) => p.challengeId === challenge.id)
+        const completed = challengeProgress.filter((p: UserProgressRecord) => p.status === 'completed').length
         const avgAttempts =
-          challengeProgress.reduce((sum, p) => sum + p.attempts, 0) / challengeProgress.length || 0
+          challengeProgress.reduce((sum: number, p: UserProgressRecord) => sum + (p.attempts || 0), 0) /
+            challengeProgress.length || 0
 
         return {
           id: challenge.id,
@@ -61,7 +70,8 @@ export default function AnalyticsPage() {
           difficulty: challenge.difficulty,
           attempts: challengeProgress.length,
           completions: completed,
-          completionRate: challengeProgress.length > 0 ? (completed / challengeProgress.length) * 100 : 0,
+          completionRate:
+            challengeProgress.length > 0 ? (completed / challengeProgress.length) * 100 : 0,
           avgAttempts: Math.round(avgAttempts),
         }
       })

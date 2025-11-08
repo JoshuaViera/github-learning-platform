@@ -1,3 +1,4 @@
+// scripts/challenges/git-branching.js
 const gitBranchingChallenges = [
   {
     moduleId: 'git-branching',
